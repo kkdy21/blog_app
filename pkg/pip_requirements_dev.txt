@@ -1,0 +1,6 @@
+-r pip_requirements.txt 
+
+pytest
+httpx 
+Ruff 
+mypy 

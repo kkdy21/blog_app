@@ -1,0 +1,33 @@
+version: '3.9'
+
+services:
+  app:
+    ports:
+      - "8000:8000"
+    volumes:
+      - .:/usr/src/app
+    build:
+      context: .
+      dockerfile: Dockerfile
+    depends_on:
+      db:
+        condition: service_healthy # db가 준비되면 app 실행
+
+  db:
+    image: postgres:15
+    volumes: 
+      - postgres_data:/var/lib/postgresql/data/
+    environment:
+      - POSTGRES_DB=blog_db
+      - POSTGRES_USER=root
+      - POSTGRES_PASSWORD=root1234$
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U root -d blog_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  postgres_data: # 데이터베이스 데이터를 영구적으로 보관하기 위한 볼륨
