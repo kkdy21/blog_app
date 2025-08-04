@@ -2,9 +2,10 @@
 fastapi
 uvicorn[standard]
 sqlalchemy
-psycopg2-binary
+pymysql
 pydantic
 pydantic-settings
 python-jose[cryptography]
 passlib[bcrypt]
 redis
+jinja2
