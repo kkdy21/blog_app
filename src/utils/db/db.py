@@ -2,7 +2,7 @@ import os
 from collections.abc import Generator
 from typing import Any
 
-from fastapi import HTTPException
+from fastapi import HTTPException, status
 from sqlalchemy import create_engine
 from sqlalchemy.engine import Connection
 from sqlalchemy.exc import SQLAlchemyError
@@ -21,13 +21,22 @@ class PostgreDatabase:
         self.engine = create_engine(db_url, **(options or {}))
 
     def get_connection(self) -> Generator[Connection, None, None]:
-        conn = None
+        conn = self.engine.connect()
+        transaction = conn.begin()
+
         try:
-            conn = self.engine.connect()
             yield conn
-        except SQLAlchemyError as e:
-            print(e)
-            raise HTTPException(status_code=500, detail=str(e)) from e
+            transaction.commit()
+        except Exception as e:
+            transaction.rollback()
+
+            if isinstance(e, SQLAlchemyError):
+                raise HTTPException(
+                    status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                    detail=str(e),
+                ) from e
+            else:
+                raise HTTPException(status_code=500, detail=str(e)) from e
         finally:
             if conn:
                 conn.close()
