@@ -14,7 +14,7 @@ DB_CONNECTION_OPTIONS: dict[str, Any] = {
 }
 
 
-class PostgreDatabase:
+class MysqlDatabase:
     def __init__(self, db_url: str, options: dict[str, dict] | None = None):
         if not db_url:
             raise ValueError("DATABASE_URL is not set")
@@ -46,6 +46,6 @@ database_url = os.getenv("DATABASE_URL")
 if not database_url:
     raise ValueError("DATABASE_URL environment variable is not set")
 
-db = PostgreDatabase(database_url, DB_CONNECTION_OPTIONS)
+db = MysqlDatabase(database_url, DB_CONNECTION_OPTIONS)
 
 get_connection_db = db.get_connection

@@ -1,14 +1,13 @@
-from fastapi import APIRouter, Depends, HTTPException, Request, status
-from fastapi.responses import HTMLResponse
+from fastapi import APIRouter, Depends, Form, Request, status
+from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
-from sqlalchemy import text
 from sqlalchemy.engine import Connection
-from sqlalchemy.exc import SQLAlchemyError
 
 from src.model.blog.database import BlogData
+from src.service.blog_svc import BlogService
 from src.utils.db.db import get_connection_db
 
-router = APIRouter(prefix="/blog", tags=["blog"])
+router = APIRouter(prefix="/blogs", tags=["blogs"])
 template = Jinja2Templates(directory="src/templates")
 
 
@@ -17,48 +16,87 @@ template = Jinja2Templates(directory="src/templates")
 async def get_all_blogs(
     request: Request, conn: Connection = Depends(get_connection_db)
 ) -> HTMLResponse:
-    try:
-        query = """
-        select * from blog
-        order by modified_dt desc;
-        """
-        result = conn.execute(text(query))
-        all_blogs = result.fetchall()
-        all_blogs_dto = [
-            BlogData(
-                id=blog.id,
-                title=blog.title,
-                author=blog.author,
-                content=blog.content,
-                modified_dt=blog.modified_dt,
-                image_loc=blog.image_loc,
-            )
-            for blog in all_blogs
-        ]
+    all_blogs_dto = BlogService().get_all_blogs(conn)
 
-        return template.TemplateResponse(
-            request=request,
-            name="index.html",
-            context={"request": request, "all_blogs": all_blogs_dto},
-            status_code=200,
-        )
-    except SQLAlchemyError as e:
-        print(e)
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="데이터베이스 연결 실패",
-        ) from e
+    return template.TemplateResponse(
+        request=request,
+        name="index.html",
+        context={"request": request, "all_blogs": all_blogs_dto},
+        status_code=200,
+    )
 
-    except Exception as e:
-        print(e)
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="알수없는 에러 발생",
-        ) from e
+
+# 특정 블로그 조회
+@router.get("/show/{blog_id}")
+async def get_blog_by_id(
+    request: Request, blog_id: int, conn: Connection = Depends(get_connection_db)
+) -> HTMLResponse:
+    blog_dto = BlogService().get_blog_by_id(blog_id, conn)
+
+    return template.TemplateResponse(
+        request=request,
+        name="show_blog.html",
+        context={"request": request, "blog": blog_dto},
+        status_code=200,
+    )
+
+
+# 블로그 생성
+
+
+@router.get("/new")
+def get_create_blog_ui(request: Request) -> HTMLResponse:
+    return template.TemplateResponse(
+        request=request,
+        name="new_blog.html",
+    )
+
+
+@router.post("/new")
+def create_blog(
+    request: Request,
+    title: str = Form(min_length=2, max_length=200),
+    author: str = Form(max_length=100),
+    content: str = Form(min_length=2, max_length=4000),
+    conn: Connection = Depends(get_connection_db),
+) -> RedirectResponse:
+    BlogService().create_blog(title, author, content, conn)
+    return RedirectResponse(url="/blogs", status_code=status.HTTP_303_SEE_OTHER)
 
 
 # 특정 블로그 update
+@router.get("/modify/{blog_id}")
+def get_update_blog_ui(
+    request: Request, blog_id: int, conn: Connection = Depends(get_connection_db)
+) -> HTMLResponse:
+    blog_dto: BlogData = BlogService().get_blog_by_id(blog_id, conn)
+
+    return template.TemplateResponse(
+        request=request,
+        name="modify_blog.html",
+        context={"blog": blog_dto},
+    )
+
+
+@router.post("/modify/{blog_id}")
+def update_blog(
+    request: Request,
+    blog_id: int,
+    title: str = Form(min_length=2, max_length=200),
+    author: str = Form(max_length=100),
+    content: str = Form(min_length=2, max_length=4000),
+    conn: Connection = Depends(get_connection_db),
+) -> RedirectResponse:
+    BlogService().update_blog(blog_id, title, author, content, conn=conn)
+    return RedirectResponse(
+        url=f"/blogs/show/{blog_id}", status_code=status.HTTP_303_SEE_OTHER
+    )
+
 
 # 특정 블로그 삭제
-
-# 블로그 생성
+@router.post("/delete/{blog_id}")
+def delete_blog(
+    request: Request, blog_id: int, conn: Connection = Depends(get_connection_db)
+) -> RedirectResponse:
+    BlogService().delete_blog(blog_id, conn)
+    return RedirectResponse(url="/blogs", status_code=status.HTTP_303_SEE_OTHER)
