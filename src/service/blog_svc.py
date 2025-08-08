@@ -4,6 +4,7 @@ from sqlalchemy.engine import Connection
 from sqlalchemy.exc import SQLAlchemyError
 
 from src.model.blog.database import BlogData
+from src.utils.text_handler import newline_to_br, truncate_text
 
 
 class BlogService:
@@ -20,7 +21,7 @@ class BlogService:
                     id=blog.id,
                     title=blog.title,
                     author=blog.author,
-                    content=blog.content,
+                    content=truncate_text(newline_to_br(blog.content)),
                     modified_dt=blog.modified_dt,
                     image_loc=blog.image_loc,
                 )
@@ -61,7 +62,7 @@ class BlogService:
                 id=blog_vo.id,
                 title=blog_vo.title,
                 author=blog_vo.author,
-                content=blog_vo.content,
+                content=newline_to_br(blog_vo.content),
                 modified_dt=blog_vo.modified_dt,
                 image_loc=blog_vo.image_loc,
             )

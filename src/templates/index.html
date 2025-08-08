@@ -12,7 +12,7 @@
     <div>
         <h3><a href="/blogs/show/{{ blog.id }}">{{ blog.title }}</a></h3>
         <p><small>Posted on {{ blog.modified_dt }} by {{ blog.author }} </small> </p>
-        <p> {{ blog.content }} </p>
+        <p> {{ blog.content | safe }} </p>
     </div>
     {% endfor %}
 </body>
