@@ -1,14 +1,13 @@
 from fastapi import APIRouter, Depends, File, Form, Request, UploadFile, status
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
-from fastapi.templating import Jinja2Templates
 from sqlalchemy.engine import Connection
 
 from src.model.blog.database import BlogData
 from src.service.blog_svc import BlogService
 from src.utils.db.db import get_connection_db
+from src.utils.jinja_template import jinja_manager
 
 router = APIRouter(prefix="/blogs", tags=["blogs"])
-template = Jinja2Templates(directory="src/templates")
 
 
 # 모든 블로그 글 조회
@@ -18,7 +17,7 @@ async def get_all_blogs(
 ) -> HTMLResponse:
     all_blogs_dto = BlogService().get_all_blogs(conn)
 
-    return template.TemplateResponse(
+    return jinja_manager.templates.TemplateResponse(
         request=request,
         name="index.html",
         context={"request": request, "all_blogs": all_blogs_dto},
@@ -33,7 +32,7 @@ async def get_blog_by_id(
 ) -> HTMLResponse:
     blog_dto = BlogService().get_blog_by_id(blog_id, conn)
 
-    return template.TemplateResponse(
+    return jinja_manager.templates.TemplateResponse(
         request=request,
         name="show_blog.html",
         context={"request": request, "blog": blog_dto},
@@ -44,7 +43,7 @@ async def get_blog_by_id(
 # 블로그 생성
 @router.get("/new")
 def get_create_blog_ui(request: Request) -> HTMLResponse:
-    return template.TemplateResponse(
+    return jinja_manager.templates.TemplateResponse(
         request=request,
         name="new_blog.html",
     )
@@ -70,7 +69,7 @@ def get_update_blog_ui(
 ) -> HTMLResponse:
     blog_dto: BlogData = BlogService().get_blog_by_id(blog_id, conn)
 
-    return template.TemplateResponse(
+    return jinja_manager.templates.TemplateResponse(
         request=request,
         name="modify_blog.html",
         context={"blog": blog_dto},
