@@ -9,4 +9,4 @@ class BlogData:
     author: str
     content: str
     modified_dt: datetime
-    image_loc: str | None = None
+    image_loc: str

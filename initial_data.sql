@@ -59,3 +59,6 @@ values (
     );
 
 COMMIT;
+
+/* connection 모니터링 스크립트. root로 수행 필요. */
+select * from sys.session where db='blog_db' order by conn_id;

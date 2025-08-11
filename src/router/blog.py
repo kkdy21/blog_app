@@ -1,5 +1,5 @@
-from fastapi import APIRouter, Depends, Form, Request, status
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi import APIRouter, Depends, File, Form, Request, UploadFile, status
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.engine import Connection
 
@@ -42,8 +42,6 @@ async def get_blog_by_id(
 
 
 # 블로그 생성
-
-
 @router.get("/new")
 def get_create_blog_ui(request: Request) -> HTMLResponse:
     return template.TemplateResponse(
@@ -53,14 +51,15 @@ def get_create_blog_ui(request: Request) -> HTMLResponse:
 
 
 @router.post("/new")
-def create_blog(
+async def create_blog(
     request: Request,
     title: str = Form(min_length=2, max_length=200),
     author: str = Form(max_length=100),
     content: str = Form(min_length=2, max_length=4000),
+    image_file: UploadFile = File(None),
     conn: Connection = Depends(get_connection_db),
 ) -> RedirectResponse:
-    BlogService().create_blog(title, author, content, conn)
+    await BlogService().create_blog(title, author, content, image_file, conn)
     return RedirectResponse(url="/blogs", status_code=status.HTTP_303_SEE_OTHER)
 
 
@@ -85,18 +84,20 @@ def update_blog(
     title: str = Form(min_length=2, max_length=200),
     author: str = Form(max_length=100),
     content: str = Form(min_length=2, max_length=4000),
+    image_file: UploadFile = File(None),
     conn: Connection = Depends(get_connection_db),
 ) -> RedirectResponse:
-    BlogService().update_blog(blog_id, title, author, content, conn=conn)
+    BlogService().update_blog(blog_id, title, author, content, image_file, conn=conn)
     return RedirectResponse(
         url=f"/blogs/show/{blog_id}", status_code=status.HTTP_303_SEE_OTHER
     )
 
 
-# 특정 블로그 삭제
-@router.post("/delete/{blog_id}")
+@router.delete("/delete/{blog_id}")
 def delete_blog(
     request: Request, blog_id: int, conn: Connection = Depends(get_connection_db)
-) -> RedirectResponse:
+) -> JSONResponse:
     BlogService().delete_blog(blog_id, conn)
-    return RedirectResponse(url="/blogs", status_code=status.HTTP_303_SEE_OTHER)
+    return JSONResponse(
+        content={"message": "Blog deleted successfully"}, status_code=status.HTTP_200_OK
+    )

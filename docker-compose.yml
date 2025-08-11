@@ -5,12 +5,14 @@ services:
     ports:
       - "8000:8000"
     volumes:
-      - .:/usr/src/app
+      - .:${VOLUME_PATH}
     build:
       context: .
       dockerfile: Dockerfile
     environment:
       - DATABASE_URL=mysql+pymysql://root:root1234$@db:3306/blog_db
+      - IMAGE_UPLOAD_PATH=${VOLUME_PATH}/src/static/images
+      - VOLUME_PATH=${VOLUME_PATH}
     depends_on:
       db:
         condition: service_healthy

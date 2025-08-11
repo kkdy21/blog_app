@@ -1,13 +1,17 @@
-from fastapi import HTTPException, status
+from fastapi import HTTPException, UploadFile, status
 from sqlalchemy import text
 from sqlalchemy.engine import Connection
 from sqlalchemy.exc import SQLAlchemyError
 
+from src.manager.image_manager import ImageManager
 from src.model.blog.database import BlogData
-from src.utils.text_handler import newline_to_br, truncate_text
+from src.utils.text_helper import newline_to_br, truncate_text
 
 
 class BlogService:
+    def __init__(self) -> None:
+        self.image_manager = ImageManager()
+
     def get_all_blogs(self, conn: Connection) -> list[BlogData]:
         try:
             query = """
@@ -23,7 +27,7 @@ class BlogService:
                     author=blog.author,
                     content=truncate_text(newline_to_br(blog.content)),
                     modified_dt=blog.modified_dt,
-                    image_loc=blog.image_loc,
+                    image_loc=self.image_manager.resolve_image_url(blog.image_loc),
                 )
                 for blog in all_blog_vos
             ]
@@ -78,19 +82,29 @@ class BlogService:
                 detail=f"알수없는 에러 발생: {str(e)}",
             ) from e
 
-    def create_blog(
-        self, title: str, author: str, content: str, conn: Connection
+    async def create_blog(
+        self,
+        title: str,
+        author: str,
+        content: str,
+        image_file: UploadFile | None,
+        conn: Connection,
     ) -> None:
         try:
+            image_loc = None
+            if image_file:
+                image_loc = self.image_manager.save_image(author, image_file)
+
             query = """
-                    insert into blog (title, author, content, modified_dt)
-                    values (:title, :author, :content, now());
+                    insert into blog (title, author, content, modified_dt, image_loc)
+                    values (:title, :author, :content, now(), :image_loc);
                     """
             stmt = text(query)
             bind_stmt = stmt.bindparams(
                 title=title,
                 author=author,
                 content=content,
+                image_loc=image_loc,
             )
             conn.execute(bind_stmt)
 
@@ -131,12 +145,17 @@ class BlogService:
         title: str,
         author: str,
         content: str,
+        image_file: UploadFile | None,
         conn: Connection,
     ) -> None:
         try:
+            image_loc = None
+            if image_file:
+                image_loc = self.image_manager.save_image(author, image_file)
+
             query = """
                     update blog
-                    set title = :title, author = :author, content = :content, modified_dt = now()
+                    set title = :title, author = :author, content = :content, modified_dt = now(), image_loc = :image_loc
                     where id = :blog_id;
                     """
             stmt = text(query)
@@ -145,6 +164,7 @@ class BlogService:
                 title=title,
                 author=author,
                 content=content,
+                image_loc=image_loc,
             )
             result = conn.execute(bind_stmt)
 
@@ -154,6 +174,7 @@ class BlogService:
                     detail="블로그 글을 찾을 수 없습니다.",
                 )
         except SQLAlchemyError as e:
+            print(e)
             raise HTTPException(
                 status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
                 detail="데이터베이스 연결 실패",
