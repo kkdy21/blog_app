@@ -1,6 +1,7 @@
 import os
 import time
 
+import aiofiles
 from dotenv import load_dotenv
 from fastapi import HTTPException
 from fastapi.datastructures import UploadFile
@@ -20,7 +21,7 @@ class ImageManager:
         if not os.path.exists(self.image_upload_path):
             os.makedirs(self.image_upload_path)
 
-    def save_image(self, author: str, image: UploadFile) -> str:
+    async def save_image(self, author: str, image: UploadFile) -> str:
         """파일 저장을 실제로 담당하는 '동기' 함수"""
         filename = image.filename or "upload_error.svg"
         filename_only, ext = os.path.splitext(filename)
@@ -32,9 +33,9 @@ class ImageManager:
         full_path = os.path.join(author_dir, upload_filename)
 
         try:
-            with open(full_path, "wb") as outfile:
-                while content := image.file.read(1024):
-                    outfile.write(content)
+            async with aiofiles.open(full_path, "wb") as outfile:
+                while content := await image.read(1024):
+                    await outfile.write(content)
                 print("upload succeeded:", full_path)
         except Exception as e:
             print(f"File save error: {e}")

@@ -21,4 +21,4 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 
     yield
     print("Shutting down...")
-    db.engine.dispose()
+    await db.engine.dispose()

@@ -2,7 +2,6 @@
 fastapi
 uvicorn[standard]
 sqlalchemy
-pymysql
 pydantic
 pydantic-settings
 python-jose[cryptography]
@@ -10,3 +9,6 @@ passlib[bcrypt]
 redis
 jinja2
 python-multipart
+pymysql==1.1.1
+aiomysql==0.2.0
+aiofiles==24.1.0

@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, File, Form, Request, UploadFile, status
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
-from sqlalchemy.engine import Connection
+from sqlalchemy.ext.asyncio import AsyncConnection
 
 from src.model.blog.database import BlogData
 from src.service.blog_svc import BlogService
@@ -13,9 +13,9 @@ router = APIRouter(prefix="/blogs", tags=["blogs"])
 # 모든 블로그 글 조회
 @router.get("/")
 async def get_all_blogs(
-    request: Request, conn: Connection = Depends(get_connection_db)
+    request: Request, conn: AsyncConnection = Depends(get_connection_db)
 ) -> HTMLResponse:
-    all_blogs_dto = BlogService().get_all_blogs(conn)
+    all_blogs_dto = await BlogService().get_all_blogs(conn)
 
     return jinja_manager.templates.TemplateResponse(
         request=request,
@@ -28,9 +28,9 @@ async def get_all_blogs(
 # 특정 블로그 조회
 @router.get("/show/{blog_id}")
 async def get_blog_by_id(
-    request: Request, blog_id: int, conn: Connection = Depends(get_connection_db)
+    request: Request, blog_id: int, conn: AsyncConnection = Depends(get_connection_db)
 ) -> HTMLResponse:
-    blog_dto = BlogService().get_blog_by_id(blog_id, conn)
+    blog_dto = await BlogService().get_blog_by_id(blog_id, conn)
 
     return jinja_manager.templates.TemplateResponse(
         request=request,
@@ -56,7 +56,7 @@ async def create_blog(
     author: str = Form(max_length=100),
     content: str = Form(min_length=2, max_length=4000),
     image_file: UploadFile = File(None),
-    conn: Connection = Depends(get_connection_db),
+    conn: AsyncConnection = Depends(get_connection_db),
 ) -> RedirectResponse:
     await BlogService().create_blog(title, author, content, image_file, conn)
     return RedirectResponse(url="/blogs", status_code=status.HTTP_303_SEE_OTHER)
@@ -64,10 +64,10 @@ async def create_blog(
 
 # 특정 블로그 update
 @router.get("/modify/{blog_id}")
-def get_update_blog_ui(
-    request: Request, blog_id: int, conn: Connection = Depends(get_connection_db)
+async def get_update_blog_ui(
+    request: Request, blog_id: int, conn: AsyncConnection = Depends(get_connection_db)
 ) -> HTMLResponse:
-    blog_dto: BlogData = BlogService().get_blog_by_id(blog_id, conn)
+    blog_dto: BlogData = await BlogService().get_blog_by_id(blog_id, conn)
 
     return jinja_manager.templates.TemplateResponse(
         request=request,
@@ -77,26 +77,28 @@ def get_update_blog_ui(
 
 
 @router.post("/modify/{blog_id}")
-def update_blog(
+async def update_blog(
     request: Request,
     blog_id: int,
     title: str = Form(min_length=2, max_length=200),
     author: str = Form(max_length=100),
     content: str = Form(min_length=2, max_length=4000),
     image_file: UploadFile = File(None),
-    conn: Connection = Depends(get_connection_db),
+    conn: AsyncConnection = Depends(get_connection_db),
 ) -> RedirectResponse:
-    BlogService().update_blog(blog_id, title, author, content, image_file, conn=conn)
+    await BlogService().update_blog(
+        blog_id, title, author, content, image_file, conn=conn
+    )
     return RedirectResponse(
         url=f"/blogs/show/{blog_id}", status_code=status.HTTP_303_SEE_OTHER
     )
 
 
 @router.delete("/delete/{blog_id}")
-def delete_blog(
-    request: Request, blog_id: int, conn: Connection = Depends(get_connection_db)
+async def delete_blog(
+    request: Request, blog_id: int, conn: AsyncConnection = Depends(get_connection_db)
 ) -> JSONResponse:
-    BlogService().delete_blog(blog_id, conn)
+    await BlogService().delete_blog(blog_id, conn)
     return JSONResponse(
         content={"message": "Blog deleted successfully"}, status_code=status.HTTP_200_OK
     )

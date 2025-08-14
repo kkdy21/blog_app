@@ -1,7 +1,7 @@
 from fastapi import HTTPException, UploadFile, status
 from sqlalchemy import text
-from sqlalchemy.engine import Connection
 from sqlalchemy.exc import SQLAlchemyError
+from sqlalchemy.ext.asyncio import AsyncConnection
 
 from src.manager.image_manager import ImageManager
 from src.model.blog.database import BlogData
@@ -12,13 +12,13 @@ class BlogService:
     def __init__(self) -> None:
         self.image_manager = ImageManager()
 
-    def get_all_blogs(self, conn: Connection) -> list[BlogData]:
+    async def get_all_blogs(self, conn: AsyncConnection) -> list[BlogData]:
         try:
             query = """
                     select * from blog
                     order by modified_dt desc;
                     """
-            result = conn.execute(text(query))
+            result = await conn.execute(text(query))
             all_blog_vos = result.fetchall()
             all_blog_dto = [
                 BlogData(
@@ -45,7 +45,7 @@ class BlogService:
                 detail=f"알수없는 에러 발생: {str(e)}",
             ) from e
 
-    def get_blog_by_id(self, blog_id: int, conn: Connection) -> BlogData:
+    async def get_blog_by_id(self, blog_id: int, conn: AsyncConnection) -> BlogData:
         try:
             query = """
                     select * from blog
@@ -54,7 +54,7 @@ class BlogService:
             stmt = text(query)
             bind_stmt = stmt.bindparams(blog_id=blog_id)
 
-            result = conn.execute(bind_stmt)
+            result = await conn.execute(bind_stmt)
             blog_vo = result.fetchone()
             if not blog_vo:
                 raise HTTPException(
@@ -88,12 +88,12 @@ class BlogService:
         author: str,
         content: str,
         image_file: UploadFile | None,
-        conn: Connection,
+        conn: AsyncConnection,
     ) -> None:
         try:
             image_loc = None
             if image_file:
-                image_loc = self.image_manager.save_image(author, image_file)
+                image_loc = await self.image_manager.save_image(author, image_file)
 
             query = """
                     insert into blog (title, author, content, modified_dt, image_loc)
@@ -106,7 +106,7 @@ class BlogService:
                 content=content,
                 image_loc=image_loc,
             )
-            conn.execute(bind_stmt)
+            await conn.execute(bind_stmt)
 
         except SQLAlchemyError as e:
             raise HTTPException(
@@ -119,7 +119,7 @@ class BlogService:
                 detail=f"알수없는 에러 발생: {str(e)}",
             ) from e
 
-    def delete_blog(self, blog_id: int, conn: Connection) -> None:
+    async def delete_blog(self, blog_id: int, conn: AsyncConnection) -> None:
         try:
             query = """
                     delete from blog
@@ -127,7 +127,7 @@ class BlogService:
                     """
             stmt = text(query)
             bind_stmt = stmt.bindparams(blog_id=blog_id)
-            conn.execute(bind_stmt)
+            await conn.execute(bind_stmt)
         except SQLAlchemyError as e:
             raise HTTPException(
                 status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
@@ -139,14 +139,14 @@ class BlogService:
                 detail=f"알수없는 에러 발생: {str(e)}",
             ) from e
 
-    def update_blog(
+    async def update_blog(
         self,
         blog_id: int,
         title: str,
         author: str,
         content: str,
         image_file: UploadFile | None,
-        conn: Connection,
+        conn: AsyncConnection,
     ) -> None:
         try:
             image_loc = None
@@ -166,7 +166,7 @@ class BlogService:
                 content=content,
                 image_loc=image_loc,
             )
-            result = conn.execute(bind_stmt)
+            result = await conn.execute(bind_stmt)
 
             if result.rowcount == 0:
                 raise HTTPException(
