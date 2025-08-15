@@ -62,3 +62,12 @@ COMMIT;
 
 /* connection 모니터링 스크립트. root로 수행 필요. */
 select * from sys.session where db='blog_db' order by conn_id;
+
+create table user
+(
+    id integer auto_increment primary key,
+    name varchar(100) not null,
+    email varchar(100) not null unique,
+    hashed_password varchar(200) not null,
+    created_at datetime not null,
+);

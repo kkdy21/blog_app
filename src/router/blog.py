@@ -9,6 +9,8 @@ from src.utils.jinja_template import jinja_manager
 
 router = APIRouter(prefix="/blogs", tags=["blogs"])
 
+template = jinja_manager.templates
+
 
 # 모든 블로그 글 조회
 @router.get("/")
@@ -17,7 +19,7 @@ async def get_all_blogs(
 ) -> HTMLResponse:
     all_blogs_dto = await BlogService().get_all_blogs(conn)
 
-    return jinja_manager.templates.TemplateResponse(
+    return template.TemplateResponse(
         request=request,
         name="index.html",
         context={"request": request, "all_blogs": all_blogs_dto},
@@ -32,7 +34,7 @@ async def get_blog_by_id(
 ) -> HTMLResponse:
     blog_dto = await BlogService().get_blog_by_id(blog_id, conn)
 
-    return jinja_manager.templates.TemplateResponse(
+    return template.TemplateResponse(
         request=request,
         name="show_blog.html",
         context={"request": request, "blog": blog_dto},
@@ -43,7 +45,7 @@ async def get_blog_by_id(
 # 블로그 생성
 @router.get("/new")
 def get_create_blog_ui(request: Request) -> HTMLResponse:
-    return jinja_manager.templates.TemplateResponse(
+    return template.TemplateResponse(
         request=request,
         name="new_blog.html",
     )
@@ -69,7 +71,7 @@ async def get_update_blog_ui(
 ) -> HTMLResponse:
     blog_dto: BlogData = await BlogService().get_blog_by_id(blog_id, conn)
 
-    return jinja_manager.templates.TemplateResponse(
+    return template.TemplateResponse(
         request=request,
         name="modify_blog.html",
         context={"blog": blog_dto},
