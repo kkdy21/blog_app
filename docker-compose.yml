@@ -13,6 +13,7 @@ services:
       - DATABASE_URL=mysql+aiomysql://root:root1234$@db:3306/blog_db
       - IMAGE_UPLOAD_PATH=${VOLUME_PATH}/src/static/images
       - VOLUME_PATH=${VOLUME_PATH}
+      - SECRET_KEY=bolg_db
     depends_on:
       db:
         condition: service_healthy
