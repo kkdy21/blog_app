@@ -5,6 +5,7 @@ from passlib.context import CryptContext
 from pydantic import EmailStr
 from sqlalchemy.ext.asyncio import AsyncConnection
 
+from src.manager.session_manager import SessionManager
 from src.service.user_svc import UserService
 from src.utils.db.db import get_connection_db
 from src.utils.jinja_template import jinja_manager
@@ -32,6 +33,8 @@ async def sign_in(
     conn: AsyncConnection = Depends(get_connection_db),
 ) -> RedirectResponse:
     user_vo = await UserService().sign_in(email, password, conn)
+    session_manager = SessionManager(request)
+    session_manager.set_session_user(user_vo)
     return RedirectResponse(url="/blogs", status_code=status.HTTP_303_SEE_OTHER)
 
 

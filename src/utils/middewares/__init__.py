@@ -1,6 +1,6 @@
 from fastapi import FastAPI
 
-from .cors import DummyMiddleware, add_cors_middleware
+from .cors import add_cors_middleware
 from .session import add_session_middleware
 
 

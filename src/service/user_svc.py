@@ -49,7 +49,7 @@ class UserService:
 
     async def sign_in(
         self, email: str, password: str, conn: AsyncConnection
-    ) -> UserDataPass:
+    ) -> UserData:
         user_vo = await self.get_user_vo_by_email(email, conn)
         if not user_vo:
             raise HTTPException(
