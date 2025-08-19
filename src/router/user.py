@@ -56,3 +56,9 @@ async def sign_up(
 ) -> RedirectResponse:
     await UserService().create_user(name, email, password, conn)
     return RedirectResponse(url="/users/sign_in", status_code=status.HTTP_303_SEE_OTHER)
+
+
+@router.get("/sign_out")
+async def sign_out(request: Request) -> RedirectResponse:
+    request.session.clear()
+    return RedirectResponse(url="/users/sign_in", status_code=status.HTTP_303_SEE_OTHER)

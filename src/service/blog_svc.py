@@ -4,6 +4,7 @@ from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncConnection
 
 from src.manager.image_manager import ImageManager
+from src.manager.session_manager import SessionManager
 from src.model.blog.database import BlogData
 from src.utils.text_helper import newline_to_br, truncate_text
 
@@ -15,8 +16,9 @@ class BlogService:
     async def get_all_blogs(self, conn: AsyncConnection) -> list[BlogData]:
         try:
             query = """
-                    select * from blog
-                    order by modified_dt desc;
+                    select * from blog as b
+                    order by modified_dt desc
+                    join user as u on b.author_id = u.id;
                     """
             result = await conn.execute(text(query))
             all_blog_vos = result.fetchall()
@@ -24,7 +26,7 @@ class BlogService:
                 BlogData(
                     id=blog.id,
                     title=blog.title,
-                    author=blog.author,
+                    author_id=blog.author_id,
                     content=truncate_text(newline_to_br(blog.content)),
                     modified_dt=blog.modified_dt,
                     image_loc=self.image_manager.resolve_image_url(blog.image_loc),
@@ -65,7 +67,7 @@ class BlogService:
             blog_dto = BlogData(
                 id=blog_vo.id,
                 title=blog_vo.title,
-                author=blog_vo.author,
+                author_id=blog_vo.author_id,
                 content=newline_to_br(blog_vo.content),
                 modified_dt=blog_vo.modified_dt,
                 image_loc=blog_vo.image_loc,
@@ -85,24 +87,33 @@ class BlogService:
     async def create_blog(
         self,
         title: str,
-        author: str,
         content: str,
         image_file: UploadFile | None,
         conn: AsyncConnection,
+        session_manager: SessionManager,
     ) -> None:
         try:
+            session_user = session_manager.get_session_user()
+            if session_user is None:
+                raise HTTPException(
+                    status_code=status.HTTP_401_UNAUTHORIZED,
+                    detail="로그인이 필요합니다.",
+                )
+
             image_loc = None
             if image_file:
-                image_loc = await self.image_manager.save_image(author, image_file)
+                image_loc = await self.image_manager.save_image(
+                    session_user.name, image_file
+                )
 
             query = """
-                    insert into blog (title, author, content, modified_dt, image_loc)
-                    values (:title, :author, :content, now(), :image_loc);
+                    insert into blog (title, author_id, content, modified_dt, image_loc)
+                    values (:title, :author_id, :content, now(), :image_loc);
                     """
             stmt = text(query)
             bind_stmt = stmt.bindparams(
                 title=title,
-                author=author,
+                author_id=session_user.id,
                 content=content,
                 image_loc=image_loc,
             )
@@ -143,26 +154,33 @@ class BlogService:
         self,
         blog_id: int,
         title: str,
-        author: str,
         content: str,
         image_file: UploadFile | None,
         conn: AsyncConnection,
+        session_manager: SessionManager,
     ) -> None:
         try:
+            session_user = session_manager.get_session_user()
+            if session_user is None:
+                raise HTTPException(
+                    status_code=status.HTTP_401_UNAUTHORIZED,
+                    detail="로그인이 필요합니다.",
+                )
+
             image_loc = None
             if image_file:
-                image_loc = self.image_manager.save_image(author, image_file)
+                image_loc = self.image_manager.save_image(session_user.id, image_file)
 
             query = """
                     update blog
-                    set title = :title, author = :author, content = :content, modified_dt = now(), image_loc = :image_loc
+                    set title = :title, author_id = :author_id, content = :content, modified_dt = now(), image_loc = :image_loc
                     where id = :blog_id;
                     """
             stmt = text(query)
             bind_stmt = stmt.bindparams(
                 blog_id=blog_id,
                 title=title,
-                author=author,
+                author_id=session_user.id,
                 content=content,
                 image_loc=image_loc,
             )
