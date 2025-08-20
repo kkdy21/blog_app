@@ -7,7 +7,7 @@ drop table if exists blog;
 create table blog (
     id integer primary key auto_increment,
     title varchar(200) not null,
-    author varchar(100) not null,
+    author_id integer not null references user(id),
     content varchar(4000) not null,
     image_loc varchar(300) null,
     modified_dt datetime not null
@@ -19,7 +19,7 @@ truncate table blog;
 insert into
     blog (
         title,
-        author,
+        author_id,
         content,
         modified_dt
     )
@@ -33,7 +33,7 @@ values (
 insert into
     blog (
         title,
-        author,
+        author_id,
         content,
         modified_dt
     )
@@ -47,7 +47,7 @@ values (
 insert into
     blog (
         title,
-        author,
+        author_id,
         content,
         modified_dt
     )

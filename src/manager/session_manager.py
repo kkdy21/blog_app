@@ -1,4 +1,4 @@
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 from typing import Any
 
 from fastapi import Request
@@ -29,17 +29,30 @@ class SessionManager:
             name=user.name,
             email=user.email,
         )
-        self._set_session("session_user", session_user)
+        # 객체 대신 asdict를 사용해 딕셔너리를 세션에 저장
+        self._set_session("session_user", asdict(session_user))
 
     def get_is_authorized(
-        self, session_user: SessionUser | None, blog_author_id: int, blog_email: str
+        self,
+        session_user: SessionUser | None,
+        blog_author_id: int,
     ) -> bool:
         if session_user is None:
             return False
-        if (session_user.id == blog_author_id) and (session_user.email == blog_email):
+        if session_user.id == blog_author_id:
             return True
         return False
 
-    def get_session_user(self) -> Any:
-        # session을 저장할때 객체가 직렬화/역직렬화 과정을 거치면서 원본 클래스 정보를 잃어버림. 추후 redis로 변경할예정이므로 그냥 넘어감.
-        return self._get_session("session_user")
+    def get_session_user(self) -> SessionUser | None:
+        # 세션에서 딕셔너리를 가져옴
+        session_data = self._get_session("session_user")
+        if session_data and isinstance(session_data, dict):
+            try:
+                # 딕셔너리를 다시 SessionUser 객체로 복원
+                return SessionUser(**session_data)
+            except TypeError:
+                # 세션 데이터의 구조가 변경되었거나 손상된 경우,
+                # 안전하게 None을 반환하여 로그아웃된 것으로 처리합니다.
+                self.request.session.pop("session_user", None)
+                return None
+        return None

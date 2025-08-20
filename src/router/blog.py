@@ -21,7 +21,6 @@ async def get_all_blogs(
     session_manager: SessionManager = Depends(SessionManager),
 ) -> HTMLResponse:
     all_blogs_dto = await BlogService().get_all_blogs(conn)
-    print(session_manager.get_session_user())
     return template.TemplateResponse(
         request=request,
         name="index.html",
@@ -72,12 +71,12 @@ def get_create_blog_ui(
 async def create_blog(
     request: Request,
     title: str = Form(min_length=2, max_length=200),
-    author: str = Form(max_length=100),
     content: str = Form(min_length=2, max_length=4000),
     image_file: UploadFile = File(None),
     conn: AsyncConnection = Depends(get_connection_db),
+    session_manager: SessionManager = Depends(SessionManager),
 ) -> RedirectResponse:
-    await BlogService().create_blog(title, author, content, image_file, conn)
+    await BlogService().create_blog(title, content, image_file, conn, session_manager)
     return RedirectResponse(url="/blogs", status_code=status.HTTP_303_SEE_OTHER)
 
 
@@ -110,9 +109,10 @@ async def update_blog(
     content: str = Form(min_length=2, max_length=4000),
     image_file: UploadFile = File(None),
     conn: AsyncConnection = Depends(get_connection_db),
+    session_manager: SessionManager = Depends(SessionManager),
 ) -> RedirectResponse:
     await BlogService().update_blog(
-        blog_id, title, author, content, image_file, conn=conn
+        blog_id, title, content, image_file, conn, session_manager
     )
     return RedirectResponse(
         url=f"/blogs/show/{blog_id}", status_code=status.HTTP_303_SEE_OTHER
@@ -121,9 +121,12 @@ async def update_blog(
 
 @router.delete("/delete/{blog_id}")
 async def delete_blog(
-    request: Request, blog_id: int, conn: AsyncConnection = Depends(get_connection_db)
+    request: Request,
+    blog_id: int,
+    conn: AsyncConnection = Depends(get_connection_db),
+    session_manager: SessionManager = Depends(SessionManager),
 ) -> JSONResponse:
-    await BlogService().delete_blog(blog_id, conn)
+    await BlogService().delete_blog(blog_id, conn, session_manager)
     return JSONResponse(
         content={"message": "Blog deleted successfully"}, status_code=status.HTTP_200_OK
     )

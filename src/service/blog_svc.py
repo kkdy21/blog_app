@@ -16,9 +16,9 @@ class BlogService:
     async def get_all_blogs(self, conn: AsyncConnection) -> list[BlogData]:
         try:
             query = """
-                    select * from blog as b
-                    order by modified_dt desc
-                    join user as u on b.author_id = u.id;
+                    select b.*, u.name as author from blog as b
+                    join user as u on b.author_id = u.id
+                    order by modified_dt desc;
                     """
             result = await conn.execute(text(query))
             all_blog_vos = result.fetchall()
@@ -26,6 +26,7 @@ class BlogService:
                 BlogData(
                     id=blog.id,
                     title=blog.title,
+                    author=blog.author,
                     author_id=blog.author_id,
                     content=truncate_text(newline_to_br(blog.content)),
                     modified_dt=blog.modified_dt,
@@ -50,8 +51,9 @@ class BlogService:
     async def get_blog_by_id(self, blog_id: int, conn: AsyncConnection) -> BlogData:
         try:
             query = """
-                    select * from blog
-                    where id = :blog_id;
+                    select b.*, u.name as author from blog as b
+                    join user as u on b.author_id = u.id
+                    where b.id = :blog_id;
                     """
             stmt = text(query)
             bind_stmt = stmt.bindparams(blog_id=blog_id)
@@ -67,10 +69,11 @@ class BlogService:
             blog_dto = BlogData(
                 id=blog_vo.id,
                 title=blog_vo.title,
+                author=blog_vo.author,
                 author_id=blog_vo.author_id,
                 content=newline_to_br(blog_vo.content),
                 modified_dt=blog_vo.modified_dt,
-                image_loc=blog_vo.image_loc,
+                image_loc=self.image_manager.resolve_image_url(blog_vo.image_loc),
             )
             return blog_dto
         except SQLAlchemyError as e:
@@ -103,7 +106,7 @@ class BlogService:
             image_loc = None
             if image_file:
                 image_loc = await self.image_manager.save_image(
-                    session_user.name, image_file
+                    session_user.email, image_file
                 )
 
             query = """
@@ -130,8 +133,19 @@ class BlogService:
                 detail=f"알수없는 에러 발생: {str(e)}",
             ) from e
 
-    async def delete_blog(self, blog_id: int, conn: AsyncConnection) -> None:
+    async def delete_blog(
+        self, blog_id: int, conn: AsyncConnection, session_manager: SessionManager
+    ) -> None:
         try:
+            blog_dto = await self.get_blog_by_id(blog_id, conn)
+            session_user = session_manager.get_session_user()
+
+            if session_manager.get_is_authorized(session_user, blog_dto.author_id):
+                raise HTTPException(
+                    status_code=status.HTTP_401_UNAUTHORIZED,
+                    detail="로그인이 필요합니다.",
+                )
+
             query = """
                     delete from blog
                     where id = :blog_id;
@@ -169,7 +183,9 @@ class BlogService:
 
             image_loc = None
             if image_file:
-                image_loc = self.image_manager.save_image(session_user.id, image_file)
+                image_loc = await self.image_manager.save_image(
+                    session_user.email, image_file
+                )
 
             query = """
                     update blog

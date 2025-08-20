@@ -31,7 +31,7 @@ class ImageManager:
             os.makedirs(author_dir)
 
         full_path = os.path.join(author_dir, upload_filename)
-
+        # FIXME upload error시 error raise가 안되고 저장이됨
         try:
             async with aiofiles.open(full_path, "wb") as outfile:
                 while content := await image.read(1024):

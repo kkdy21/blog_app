@@ -6,7 +6,8 @@ from datetime import datetime
 class BlogData:
     id: int
     title: str
-    author_id: str
+    author: str
+    author_id: int
     content: str
     modified_dt: datetime
     image_loc: str
