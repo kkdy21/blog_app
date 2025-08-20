@@ -16,3 +16,4 @@ aiofiles==24.1.0
 bcrypt
 passlib[bcrypt]
 itsdangerous==2.2.0
+redis

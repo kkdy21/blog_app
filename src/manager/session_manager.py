@@ -4,6 +4,7 @@ from typing import Any
 from fastapi import Request
 
 from src.model.user.database import UserData
+from src.utils.db.redis import redis_db
 
 
 @dataclass
@@ -16,12 +17,19 @@ class SessionUser:
 class SessionManager:
     def __init__(self, request: Request):
         self.request = request
+        self.redis_db = redis_db
+        self.session_expire_time = {
+            "ex": 60 * 60,  # 1 hour
+        }
+
+    async def create_session(self, user: UserData) -> str:
+        session_id = str(uuid.uuid4())
 
     def _set_session(self, key: str, value: Any) -> None:
-        self.request.session[key] = value
+        self.redis_db.get_client().set(key, value)
 
     def _get_session(self, key: str) -> Any:
-        return self.request.session.get(key)
+        return self.redis_db.get_client().get(key)
 
     def set_session_user(self, user: UserData) -> None:
         session_user = SessionUser(
