@@ -5,7 +5,7 @@ from passlib.context import CryptContext
 from pydantic import EmailStr
 from sqlalchemy.ext.asyncio import AsyncConnection
 
-from src.manager.session_manager import SessionManager
+from src.manager.auth_manager import logout
 from src.service.user_svc import UserService
 from src.utils.db.db import get_connection_db
 from src.utils.jinja_template import jinja_manager
@@ -32,9 +32,7 @@ async def sign_in(
     password: str = Form(),
     conn: AsyncConnection = Depends(get_connection_db),
 ) -> RedirectResponse:
-    user_vo = await UserService().sign_in(email, password, conn)
-    session_manager = SessionManager(request)
-    session_manager.set_session_user(user_vo)
+    await UserService().sign_in(request, email, password, conn)
     return RedirectResponse(url="/blogs", status_code=status.HTTP_303_SEE_OTHER)
 
 
@@ -60,5 +58,5 @@ async def sign_up(
 
 @router.get("/sign_out")
 async def sign_out(request: Request) -> RedirectResponse:
-    request.session.clear()
+    logout(request)
     return RedirectResponse(url="/users/sign_in", status_code=status.HTTP_303_SEE_OTHER)

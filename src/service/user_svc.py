@@ -1,11 +1,12 @@
 from datetime import datetime
 
-from fastapi import status
+from fastapi import Request, status
 from fastapi.exceptions import HTTPException
 from sqlalchemy import text
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncConnection
 
+from src.manager.auth_manager import login
 from src.manager.password_manager import PasswordManager
 from src.model.user.database import UserData, UserDataPass
 
@@ -48,7 +49,7 @@ class UserService:
             ) from e
 
     async def sign_in(
-        self, email: str, password: str, conn: AsyncConnection
+        self, request: Request, email: str, password: str, conn: AsyncConnection
     ) -> UserData:
         user_vo = await self.get_user_vo_by_email(email, conn)
         if not user_vo:
@@ -61,6 +62,7 @@ class UserService:
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="비밀번호가 일치하지 않습니다.",
             )
+        login(request, user_vo)
         return user_vo
 
     async def get_user_by_email(

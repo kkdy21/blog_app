@@ -4,8 +4,8 @@ from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncConnection
 
 from src.manager.image_manager import ImageManager
-from src.manager.session_manager import SessionManager
 from src.model.blog.database import BlogData
+from src.model.user.database import UserData
 from src.utils.text_helper import newline_to_br, truncate_text
 
 
@@ -93,11 +93,10 @@ class BlogService:
         content: str,
         image_file: UploadFile | None,
         conn: AsyncConnection,
-        session_manager: SessionManager,
+        session_user: UserData,
     ) -> None:
         try:
-            session_user = session_manager.get_session_user()
-            if session_user is None:
+            if not session_user.id:
                 raise HTTPException(
                     status_code=status.HTTP_401_UNAUTHORIZED,
                     detail="로그인이 필요합니다.",
@@ -134,16 +133,15 @@ class BlogService:
             ) from e
 
     async def delete_blog(
-        self, blog_id: int, conn: AsyncConnection, session_manager: SessionManager
+        self, blog_id: int, conn: AsyncConnection, session_user: UserData
     ) -> None:
         try:
             blog_dto = await self.get_blog_by_id(blog_id, conn)
-            session_user = session_manager.get_session_user()
 
-            if session_manager.get_is_authorized(session_user, blog_dto.author_id):
+            if not self._is_authorized(session_user, blog_dto.author_id):
                 raise HTTPException(
                     status_code=status.HTTP_401_UNAUTHORIZED,
-                    detail="로그인이 필요합니다.",
+                    detail="권한이 없습니다.",
                 )
 
             query = """
@@ -166,19 +164,19 @@ class BlogService:
 
     async def update_blog(
         self,
+        author_id: int,
         blog_id: int,
         title: str,
         content: str,
         image_file: UploadFile | None,
         conn: AsyncConnection,
-        session_manager: SessionManager,
+        session_user: UserData,
     ) -> None:
         try:
-            session_user = session_manager.get_session_user()
-            if session_user is None:
+            if not self._is_authorized(session_user, author_id):
                 raise HTTPException(
                     status_code=status.HTTP_401_UNAUTHORIZED,
-                    detail="로그인이 필요합니다.",
+                    detail="권한이 없습니다.",
                 )
 
             image_loc = None
@@ -218,3 +216,6 @@ class BlogService:
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail=f"알수없는 에러 발생: {str(e)}",
             ) from e
+
+    def _is_authorized(self, session_user: UserData, author_id: int) -> bool:
+        return session_user.id == author_id
