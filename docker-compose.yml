@@ -38,10 +38,11 @@ services:
     image: redis:7-alpine
     ports:
       - "6380:6380"
+    command: redis-server --port 6380
     volumes:
       - redis_data:/data
     healthcheck:
-      test: [ "CMD", "redis-cli", "ping" ]
+      test: [ "CMD", "redis-cli", "-p", "6380", "ping" ]
       interval: 5s
       timeout: 5s
       retries: 5

@@ -6,6 +6,7 @@ pydantic
 email-validator
 pydantic-settings
 python-jose[cryptography]
+bcrypt==3.2.0
 passlib[bcrypt]
 redis
 jinja2
@@ -13,7 +14,4 @@ python-multipart
 pymysql==1.1.1
 aiomysql==0.2.0
 aiofiles==24.1.0
-bcrypt
-passlib[bcrypt]
 itsdangerous==2.2.0
-redis
