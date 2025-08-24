@@ -1,90 +1,89 @@
 from fastapi import HTTPException, UploadFile, status
-from sqlalchemy import text
+from sqlalchemy import delete, select, update
 from sqlalchemy.exc import SQLAlchemyError
-from sqlalchemy.ext.asyncio import AsyncConnection
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import joinedload
 
 from src.manager.image_manager import ImageManager
-from src.model.blog.database import BlogData
-from src.model.user.database import UserData
-from src.utils.text_helper import newline_to_br, truncate_text
+from src.model.blog.orm import Blog
+from src.model.blog.response import BlogListResponse, BlogResponse
+from src.model.user.orm import User
+from src.utils.text_helper import newline_to_br
 
 
 class BlogService:
     def __init__(self) -> None:
         self.image_manager = ImageManager()
 
-    async def get_all_blogs(self, conn: AsyncConnection) -> list[BlogData]:
+    async def _get_blog_orm_by_id(
+        self, blog_id: int, session: AsyncSession
+    ) -> Blog | None:
+        """
+        내부 로직 전용: ID로 원본 Blog ORM 객체를 가져옵니다.
+        """
+        stmt = select(Blog).options(joinedload(Blog.author)).where(Blog.id == blog_id)
+        result = await session.execute(stmt)
+        return result.scalar_one_or_none()
+
+    async def get_all_blogs(self, session: AsyncSession) -> list[BlogListResponse]:
+        """
+        블로그 목록 페이지를 위한 DTO 리스트를 반환합니다.
+        """
         try:
-            query = """
-                    select b.*, u.name as author from blog as b
-                    join user as u on b.author_id = u.id
-                    order by modified_dt desc;
-                    """
-            result = await conn.execute(text(query))
-            all_blog_vos = result.fetchall()
-            all_blog_dto = [
-                BlogData(
-                    id=blog.id,
-                    title=blog.title,
-                    author=blog.author,
-                    author_id=blog.author_id,
-                    content=truncate_text(newline_to_br(blog.content)),
-                    modified_dt=blog.modified_dt,
-                    image_loc=self.image_manager.resolve_image_url(blog.image_loc),
+            stmt = (
+                select(Blog)
+                .options(joinedload(Blog.author))
+                .order_by(Blog.modified_dt.desc())
+            )
+            result = await session.execute(stmt)
+            blogs_orm = result.scalars().all()
+
+            # ORM 객체 리스트를 Pydantic DTO 리스트로 변환
+            # BlogListResponse가 자동으로 내용을 자릅니다.
+            blog_dtos = [BlogListResponse.model_validate(b) for b in blogs_orm]
+
+            for blog_dto in blog_dtos:
+                blog_dto.image_loc = self.image_manager.resolve_image_url(
+                    blog_dto.image_loc
                 )
-                for blog in all_blog_vos
-            ]
+            return blog_dtos
 
-            return all_blog_dto
-
-        except SQLAlchemyError as e:
-            raise HTTPException(
-                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-                detail="데이터베이스 연결 실패",
-            ) from e
         except Exception as e:
+            # 디버깅 로그는 유지
+            print(f"Error in get_all_blogs: {e}")
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail=f"알수없는 에러 발생: {str(e)}",
+                detail=f"블로그 목록을 가져오는 중 오류 발생: {e}",
             ) from e
 
-    async def get_blog_by_id(self, blog_id: int, conn: AsyncConnection) -> BlogData:
+    async def get_blog_by_id(self, blog_id: int, session: AsyncSession) -> BlogResponse:
+        """
+        블로그 상세 페이지를 위한 DTO를 반환합니다.
+        """
         try:
-            query = """
-                    select b.*, u.name as author from blog as b
-                    join user as u on b.author_id = u.id
-                    where b.id = :blog_id;
-                    """
-            stmt = text(query)
-            bind_stmt = stmt.bindparams(blog_id=blog_id)
+            blog_orm = await self._get_blog_orm_by_id(blog_id, session)
 
-            result = await conn.execute(bind_stmt)
-            blog_vo = result.fetchone()
-            if not blog_vo:
+            if not blog_orm:
                 raise HTTPException(
                     status_code=status.HTTP_404_NOT_FOUND,
                     detail="블로그 글을 찾을 수 없습니다.",
                 )
 
-            blog_dto = BlogData(
-                id=blog_vo.id,
-                title=blog_vo.title,
-                author=blog_vo.author,
-                author_id=blog_vo.author_id,
-                content=newline_to_br(blog_vo.content),
-                modified_dt=blog_vo.modified_dt,
-                image_loc=self.image_manager.resolve_image_url(blog_vo.image_loc),
+            # ORM 객체를 BlogResponse DTO로 변환
+            blog_dto = BlogResponse.model_validate(blog_orm)
+
+            # DTO의 content를 가공 (줄바꿈 처리)
+            blog_dto.content = newline_to_br(blog_dto.content)
+            blog_dto.image_loc = self.image_manager.resolve_image_url(
+                blog_dto.image_loc
             )
+
             return blog_dto
-        except SQLAlchemyError as e:
-            raise HTTPException(
-                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-                detail="데이터베이스 연결 실패",
-            ) from e
         except Exception as e:
+            print(f"Error in get_blog_by_id: {e}")
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail=f"알수없는 에러 발생: {str(e)}",
+                detail=f"블로그를 가져오는 중 오류 발생: {e}",
             ) from e
 
     async def create_blog(
@@ -92,8 +91,8 @@ class BlogService:
         title: str,
         content: str,
         image_file: UploadFile | None,
-        conn: AsyncConnection,
-        session_user: UserData,
+        session: AsyncSession,
+        session_user: User,
     ) -> None:
         try:
             if not session_user.id:
@@ -103,102 +102,91 @@ class BlogService:
                 )
 
             image_loc = None
-            if image_file:
+            if image_file and image_file.filename:
                 image_loc = await self.image_manager.save_image(
                     session_user.email, image_file
                 )
 
-            query = """
-                    insert into blog (title, author_id, content, modified_dt, image_loc)
-                    values (:title, :author_id, :content, now(), :image_loc);
-                    """
-            stmt = text(query)
-            bind_stmt = stmt.bindparams(
+            new_blog = Blog(
                 title=title,
-                author_id=session_user.id,
                 content=content,
+                author_id=session_user.id,
                 image_loc=image_loc,
             )
-            await conn.execute(bind_stmt)
+            session.add(new_blog)
+            await session.flush()
 
         except SQLAlchemyError as e:
+            print(f"SQLAlchemyError in create_blog: {e}")
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="블로그 생성 실패",
             ) from e
-        except Exception as e:
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail=f"알수없는 에러 발생: {str(e)}",
-            ) from e
 
     async def delete_blog(
-        self, blog_id: int, conn: AsyncConnection, session_user: UserData
+        self, blog_id: int, session: AsyncSession, session_user: User
     ) -> None:
         try:
-            blog_dto = await self.get_blog_by_id(blog_id, conn)
+            blog_orm = await self._get_blog_orm_by_id(blog_id, session)
+            if not blog_orm:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail="블로그 글을 찾을 수 없습니다.",
+                )
 
-            if not self._is_authorized(session_user, blog_dto.author_id):
+            if not self._is_authorized(session_user, blog_orm.author_id):
                 raise HTTPException(
                     status_code=status.HTTP_401_UNAUTHORIZED,
                     detail="권한이 없습니다.",
                 )
+            stmt = delete(Blog).where(Blog.id == blog_id)
+            await session.execute(stmt)
 
-            query = """
-                    delete from blog
-                    where id = :blog_id;
-                    """
-            stmt = text(query)
-            bind_stmt = stmt.bindparams(blog_id=blog_id)
-            await conn.execute(bind_stmt)
         except SQLAlchemyError as e:
             raise HTTPException(
                 status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
                 detail="데이터베이스 연결 실패",
             ) from e
-        except Exception as e:
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail=f"알수없는 에러 발생: {str(e)}",
-            ) from e
 
     async def update_blog(
         self,
-        author_id: int,
         blog_id: int,
         title: str,
         content: str,
         image_file: UploadFile | None,
-        conn: AsyncConnection,
-        session_user: UserData,
+        session: AsyncSession,
+        session_user: User,
     ) -> None:
         try:
-            if not self._is_authorized(session_user, author_id):
+            blog_orm = await self._get_blog_orm_by_id(blog_id, session)
+            if not blog_orm:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail="블로그 글을 찾을 수 없습니다.",
+                )
+
+            if not self._is_authorized(session_user, blog_orm.author_id):
                 raise HTTPException(
                     status_code=status.HTTP_401_UNAUTHORIZED,
                     detail="권한이 없습니다.",
                 )
 
-            image_loc = None
-            if image_file:
+            image_loc = blog_orm.image_loc
+            if image_file and image_file.filename:
                 image_loc = await self.image_manager.save_image(
                     session_user.email, image_file
                 )
 
-            query = """
-                    update blog
-                    set title = :title, author_id = :author_id, content = :content, modified_dt = now(), image_loc = :image_loc
-                    where id = :blog_id;
-                    """
-            stmt = text(query)
-            bind_stmt = stmt.bindparams(
-                blog_id=blog_id,
-                title=title,
-                author_id=session_user.id,
-                content=content,
-                image_loc=image_loc,
+            stmt = (
+                update(Blog)
+                .where(Blog.id == blog_id)
+                .values(
+                    title=title,
+                    content=content,
+                    image_loc=image_loc,
+                )
             )
-            result = await conn.execute(bind_stmt)
+            result = await session.execute(stmt)
 
             if result.rowcount == 0:
                 raise HTTPException(
@@ -206,16 +194,10 @@ class BlogService:
                     detail="블로그 글을 찾을 수 없습니다.",
                 )
         except SQLAlchemyError as e:
-            print(e)
             raise HTTPException(
                 status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
                 detail="데이터베이스 연결 실패",
             ) from e
-        except Exception as e:
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail=f"알수없는 에러 발생: {str(e)}",
-            ) from e
 
-    def _is_authorized(self, session_user: UserData, author_id: int) -> bool:
+    def _is_authorized(self, session_user: User, author_id: int) -> bool:
         return session_user.id == author_id
