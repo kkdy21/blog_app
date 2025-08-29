@@ -6,8 +6,6 @@ import datetime
 
 # typing.TYPE_CHECKING은 타입 검사기가 코드를 분석할 때만 True가 되는 특별한 상수입니다.
 # 런타임 시에는 False이므로, 실제 프로그램 실행에 영향을 주지 않으면서 타입 힌트를 위한 모듈을 가져올 수 있습니다.
-from typing import TYPE_CHECKING
-
 from sqlalchemy import DateTime, Integer, String
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.sql import func
@@ -15,8 +13,8 @@ from sqlalchemy.sql import func
 from src.model.base import Base
 
 # 타입 검사 시에만 Blog 모델을 가져옵니다.
-if TYPE_CHECKING:
-    from src.model.blog.orm import Blog
+from src.model.blog.orm import Blog
+from src.model.comment.orm import Comment
 
 
 # users 테이블과 매핑되는 User ORM 모델 클래스입니다.
@@ -42,3 +40,4 @@ class User(Base):
     # back_populates="author"는 Blog 모델의 'author' 속성과 양방향 관계를 설정하여,
     # Blog 객체에서도 해당 User 객체에 접근할 수 있게 합니다.
     blogs: Mapped[list[Blog]] = relationship("Blog", back_populates="author")
+    comments: Mapped[list[Comment]] = relationship("Comment", back_populates="author")

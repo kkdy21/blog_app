@@ -16,6 +16,7 @@ from src.model.base import Base
 
 # 타입 검사 시에만 User 모델을 가져옵니다.
 if TYPE_CHECKING:
+    from src.model.comment.orm import Comment
     from src.model.user.orm import User
 
 
@@ -50,3 +51,4 @@ class Blog(Base):
     # back_populates="blog"는 User 모델의 'blog' 속성과 양방향 관계를 설정하여 한쪽이 수정되면 반대쪽에서도 자동으로 업데이트된 결과를 반영할수있다.
     # User 객체에서도 해당 Blog 객체 목록에 접근할 수 있게 합니다.
     author: Mapped[User] = relationship("User", back_populates="blogs")
+    comment: Mapped[Comment] = relationship("Comment", back_populates="blog")
