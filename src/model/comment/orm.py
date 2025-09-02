@@ -3,7 +3,7 @@ from __future__ import annotations
 import datetime
 from typing import TYPE_CHECKING
 
-from sqlalchemy import DateTime, ForeignKey, Integer, Text, func
+from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, Text, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from src.model.base import Base
@@ -19,6 +19,7 @@ class Comment(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
     content: Mapped[str] = mapped_column(Text, nullable=False)
+    is_deleted: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     created_at: Mapped[datetime.datetime] = mapped_column(
         DateTime(timezone=True),
         server_default=func.now(),
@@ -49,5 +50,5 @@ class Comment(Base):
 
     # 자식 댓글(대댓글) 목록과의 관계(One-to-Many)
     replies: Mapped[list[Comment]] = relationship(
-        "Comment", back_populates="parent", remote_side=[id]
+        "Comment", back_populates="parent", cascade="all, delete-orphan"
     )
