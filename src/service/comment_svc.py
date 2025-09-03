@@ -1,5 +1,5 @@
 from fastapi import HTTPException, status
-from sqlalchemy import select
+from sqlalchemy import delete, select, update
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload, selectinload
@@ -38,14 +38,80 @@ class CommentService:
                 detail="댓글 생성 실패",
             ) from e
 
-    async def get_comment(self, comment_id: int) -> Comment:
-        pass
+    async def get_comment_by_comment_id(
+        self, comment_id: int, session: AsyncSession
+    ) -> Comment:
+        try:
+            stmt = select(Comment).where(Comment.id == comment_id)
+            result = await session.execute(stmt)
+            return result.scalar_one_or_none()
+        except SQLAlchemyError as e:
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="데이터베이스 연결 실패",
+            ) from e
 
-    async def update_comment(self, comment_id: int, comment: Comment) -> None:
-        pass
+    async def update_comment(
+        self,
+        comment_id: int,
+        comment: CommentRequest,
+        session: AsyncSession,
+        session_user: User,
+    ) -> None:
+        try:
+            comment_orm = await self.get_comment_by_comment_id(comment_id, session)
+            if not comment_orm:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail="댓글을 찾을 수 없습니다.",
+                )
 
-    async def delete_comment(self, comment_id: int) -> None:
-        pass
+            if not self._is_authorized(session_user, comment_orm.author_id):
+                raise HTTPException(
+                    status_code=status.HTTP_401_UNAUTHORIZED,
+                    detail="권한이 없습니다.",
+                )
+
+            stmt = (
+                update(Comment)
+                .where(Comment.id == comment_id)
+                .values(
+                    content=comment.content,
+                )
+            )
+            await session.execute(stmt)
+
+        except SQLAlchemyError as e:
+            raise SQLAlchemyError(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="데이터베이스 연결 실패",
+            ) from e
+
+    async def delete_comment(
+        self, comment_id: int, session: AsyncSession, session_user: User
+    ) -> None:
+        try:
+            comment_orm = await self.get_comment_by_comment_id(comment_id, session)
+            if not comment_orm:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail="댓글을 찾을 수 없습니다.",
+                )
+
+            if not self._is_authorized(session_user, comment_orm.author_id):
+                raise HTTPException(
+                    status_code=status.HTTP_401_UNAUTHORIZED,
+                    detail="권한이 없습니다.",
+                )
+
+            stmt = delete(Comment).where(Comment.id == comment_id)
+            await session.execute(stmt)
+
+        except SQLAlchemyError as e:
+            raise SQLAlchemyError(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="데이터베이스 연결 실패",
+            ) from e
 
     async def get_comments_by_blog_id(
         self, blog_id: int, session: AsyncSession
@@ -67,3 +133,6 @@ class CommentService:
 
         result = await session.execute(stmt)
         return result.scalars().all()
+
+    def _is_authorized(self, session_user: User, author_id: int) -> bool:
+        return session_user.id == author_id
