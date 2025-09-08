@@ -17,6 +17,7 @@ from src.model.base import Base
 # 타입 검사 시에만 User 모델을 가져옵니다.
 if TYPE_CHECKING:
     from src.model.comment.orm import Comment
+    from src.model.tag.orm import Tag
     from src.model.user.orm import User
 
 
@@ -52,3 +53,6 @@ class Blog(Base):
     # User 객체에서도 해당 Blog 객체 목록에 접근할 수 있게 합니다.
     author: Mapped[User] = relationship("User", back_populates="blogs")
     comments: Mapped[list[Comment]] = relationship("Comment", back_populates="blog")
+    tags: Mapped[list[Tag]] = relationship(
+        "Tag", secondary="post_tags", back_populates="blogs"
+    )

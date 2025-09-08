@@ -2,6 +2,7 @@ from datetime import datetime
 
 from pydantic import BaseModel, field_validator
 
+from src.model.tag.response import TagResponse
 from src.model.user.response import UserResponse
 from src.utils.text_helper import newline_to_br
 
@@ -14,6 +15,7 @@ class BlogResponse(BaseModel):
     modified_dt: datetime
     image_loc: str | None = None
     author: UserResponse
+    tags: list[TagResponse] = []
 
     # ORM 모델 객체를 Pydantic 모델로 변환할 수 있도록 설정
     class Config:

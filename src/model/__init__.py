@@ -5,4 +5,5 @@
 from .base import Base
 from .blog.orm import Blog
 from .comment.orm import Comment
+from .tag.orm import Tag
 from .user.orm import User
