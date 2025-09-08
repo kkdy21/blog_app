@@ -50,5 +50,8 @@ class Comment(Base):
 
     # 자식 댓글(대댓글) 목록과의 관계(One-to-Many)
     replies: Mapped[list[Comment]] = relationship(
-        "Comment", back_populates="parent", cascade="all, delete-orphan"
+        "Comment",
+        back_populates="parent",
+        cascade="all, delete-orphan",
+        order_by="Comment.created_at", # 작성 순서대로 정렬
     )

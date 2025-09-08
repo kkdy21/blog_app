@@ -1,6 +1,6 @@
 {% extends "/layout/main_layout.html" %}
+
 {% block content %}
-<!-- Blog Post Content -->
 <div class="container mt-4">
     <div class="row justify-content-center">
         <div class="col-lg-10">
@@ -11,7 +11,6 @@
                 <p>{{ blog.content | safe }}</p>
             </div>
 
-            <!-- Action Buttons -->
             <a href="/blogs" class="btn btn-secondary">홈으로 돌아가기</a>
             {% if is_valid_auth %}
             <a href="/blogs/modify/{{ blog.id }}" class="btn btn-primary">블로그 수정</a>
@@ -21,35 +20,211 @@
     </div>
 </div>
 
-<!-- Delete Button 클릭 시 Check -->
+<div class="container mt-5">
+    <div class="row justify-content-center">
+        <div class="col-lg-10">
+            <h3>Comments ({{ comments|length }})</h3>
+
+            {% if session_user %}
+            <div class="card my-4">
+                <h5 class="card-header">Leave a Comment:</h5>
+                <div class="card-body">
+                    <form id="new-comment-form">
+                        <div class="form-group">
+                            <textarea id="new-comment-content" class="form-control" rows="3" required></textarea>
+                        </div>
+                        <button type="submit" class="btn btn-primary mt-2">Submit</button>
+                    </form>
+                </div>
+            </div>
+            {% else %}
+            <div class="alert alert-info">
+                <a href="/users/sign_in?next=/blogs/show/{{ blog.id }}">로그인</a> 후 댓글을 작성할 수 있습니다.
+            </div>
+            {% endif %}
+
+            <div id="comment-list"></div>
+        </div>
+    </div>
+</div>
+
 <script>
-    // 삭제전 alert 메시지 첵크
-    async function confirmDelete() {
-        if (confirm('해당 블로그를 정말 삭제하시겠습니까? 삭제된 블로그는 복구되지 않습니다.')) {
-            // 삭제를 위한 endpoint 주소
-            const url = "/blogs/delete/{{ blog.id }}";
+    const BLOG_ID = {{ blog.id }};
+    const SESSION_USER = {{ session_user.model_dump_json() | safe if session_user else 'null' }};
+    const INITIAL_COMMENTS = {{ comments | tojson }};
 
-            // 삭제 endpoint로 delete 요청.
-            try {
-                const response = await fetch(url, {
-                    method: 'DELETE', // Use 'DELETE' method for deletion
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
+    /**
+     * Creates HTML for a single comment.
+     * @param {object} comment - The comment data object.
+     * @param {number} depth - The nesting depth of the comment.
+     * @param {string|null} parentAuthorName - The name of the parent comment's author.
+     */
+    function createCommentHTML(comment, depth, parentAuthorName) {
+        const createdAt = new Date(comment.created_at).toLocaleString();
+        const isAuthor = SESSION_USER && SESSION_USER.id === comment.author.id;
+        const authorName = comment.author ? comment.author.name : "Unknown";
 
-                });
-                if (response.ok) {
-                    const result = await response.json();
-                    window.location.href = "/blogs"; // Notify the user about the successful deletion
-                } else {
-                    const errorData = await response.json();
-                    alert(`Error: ${errorData.detail}`);
-                }
-            } catch (error) {
-                console.error('Error during the fetch operation:', error);
-                alert('해당 서비스는 권한이 없습니다.');
+        let actionsHTML = '';
+        if (SESSION_USER) {
+            actionsHTML += `<a href="javascript:void(0);" class="me-2 small" onclick="showReplyForm(${comment.id})">Reply</a>`;
+            if (isAuthor) {
+                actionsHTML += `
+                    <a href="javascript:void(0);" class="me-2 small" onclick="showEditForm(${comment.id})">Edit</a>
+                    <a href="javascript:void(0);" class="small" onclick="deleteComment(${comment.id})">Delete</a>
+                `;
             }
         }
+
+        // All replies (depth > 0) get a single, non-cumulative indentation level.
+        const indentClass = depth > 0 ? 'ms-5' : '';
+        const replyToHTML = parentAuthorName
+            ? `<a href="#comment-${comment.parent_id}" class="text-primary fw-bold me-1">@${parentAuthorName}</a>`
+            : '';
+
+        return `
+            <div class="d-flex mb-4 ${indentClass}" id="comment-${comment.id}" data-author-name="${authorName}">
+                <div class="flex-shrink-0"><img class="rounded-circle" src="https://dummyimage.com/50x50/ced4da/6c757d.jpg" alt="..."></div>
+                <div class="ms-3 flex-grow-1">
+                    <div class="fw-bold">${authorName} <small class="text-muted">· ${createdAt}</small></div>
+                    <div class="comment-content">${replyToHTML}${comment.content}</div>
+                    <div class="comment-actions mt-1">${actionsHTML}</div>
+                    <div id="reply-form-${comment.id}" class="mt-3" style="display: none;">
+                        <form onsubmit="submitReply(event, ${comment.id})">
+                            <div class="form-group"><textarea class="form-control" name="content" rows="2" required></textarea></div>
+                            <button type="submit" class="btn btn-sm btn-primary mt-2">Submit Reply</button>
+                            <button type="button" class="btn btn-sm btn-secondary mt-2" onclick="hideReplyForm(${comment.id})">Cancel</button>
+                        </form>
+                    </div>
+                    <div id="edit-form-${comment.id}" class="mt-3" style="display: none;">
+                        <form onsubmit="submitEdit(event, ${comment.id})">
+                            <div class="form-group"><textarea class="form-control" name="content" rows="2" required>${comment.content}</textarea></div>
+                            <button type="submit" class="btn btn-sm btn-primary mt-2">Save Changes</button>
+                            <button type="button" class="btn btn-sm btn-secondary mt-2" onclick="hideEditForm(${comment.id})">Cancel</button>
+                        </form>
+                    </div>
+                    <div class="replies-container mt-3"></div>
+                </div>
+            </div>
+        `;
+    }
+
+    function createElementFromHTML(htmlString) {
+        const div = document.createElement('div');
+        div.innerHTML = htmlString.trim();
+        return div.firstChild;
+    }
+
+    function renderComments() {
+        const container = document.getElementById('comment-list');
+        container.innerHTML = '';
+
+        const commentMap = {};
+        function buildCommentMap(comments) {
+            comments.forEach(comment => {
+                commentMap[comment.id] = comment;
+                if (comment.replies) {
+                    buildCommentMap(comment.replies);
+                }
+            });
+        }
+        buildCommentMap(INITIAL_COMMENTS);
+
+        INITIAL_COMMENTS.forEach(rootComment => {
+            const rootElement = createElementFromHTML(createCommentHTML(rootComment, 0, null));
+            container.appendChild(rootElement);
+
+            const replies = [];
+            function collectReplies(comment) {
+                if (comment.replies) {
+                    comment.replies.forEach(reply => {
+                        replies.push(reply);
+                        collectReplies(reply);
+                    });
+                }
+            }
+            collectReplies(rootComment);
+
+            replies.sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
+
+            replies.forEach(reply => {
+                const parent = commentMap[reply.parent_id];
+                const parentAuthorName = parent ? parent.author.name : null;
+                // Pass depth as 1 for all replies to maintain same indentation
+                const replyElement = createElementFromHTML(createCommentHTML(reply, 1, parentAuthorName));
+                container.appendChild(replyElement);
+            });
+        });
+    }
+
+    // UI 제어
+    function showReplyForm(id) { document.getElementById(`reply-form-${id}`).style.display = 'block'; }
+    function hideReplyForm(id) { document.getElementById(`reply-form-${id}`).style.display = 'none'; }
+    function showEditForm(id) {
+        const div = document.getElementById(`comment-${id}`);
+        div.querySelector('.comment-content').style.display = 'none';
+        div.querySelector('.comment-actions').style.display = 'none';
+        document.getElementById(`edit-form-${id}`).style.display = 'block';
+    }
+    function hideEditForm(id) {
+        const div = document.getElementById(`comment-${id}`);
+        div.querySelector('.comment-content').style.display = 'block';
+        div.querySelector('.comment-actions').style.display = 'block';
+        document.getElementById(`edit-form-${id}`).style.display = 'none';
+    }
+
+    // Form 핸들러
+    async function handleApiResponse(res) {
+        if (!res.ok) { const err = await res.json(); alert(`Error: ${err.detail}`); return null; }
+        return res.json();
+    }
+
+    // --- Form Handlers (revert to location.reload()) ---
+    async function submitNewComment(e) {
+        e.preventDefault();
+        const content = document.getElementById('new-comment-content').value;
+        const data = { content, blog_id: BLOG_ID, parent_id: null };
+        const response = await fetch('/comments/', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) });
+        if (response.ok) location.reload();
+        else { const err = await response.json(); alert(`Error: ${err.detail}`); }
+    }
+
+    async function submitReply(e, parentId) {
+        e.preventDefault();
+        const content = e.target.querySelector('textarea').value;
+        const data = { content, blog_id: BLOG_ID, parent_id: parentId };
+        const response = await fetch('/comments/', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) });
+        if (response.ok) location.reload();
+        else { const err = await response.json(); alert(`Error: ${err.detail}`); }
+    }
+
+    async function submitEdit(e, commentId) {
+        e.preventDefault();
+        const content = e.target.querySelector('textarea').value;
+        const data = { content, blog_id: BLOG_ID };
+        const response = await fetch(`/comments/${commentId}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) });
+        if (response.ok) location.reload();
+        else { const err = await response.json(); alert(`Error: ${err.detail}`); }
+    }
+
+    async function deleteComment(id) {
+        if (!confirm('삭제하시겠습니까?')) return;
+        const response = await fetch(`/comments/${id}`, { method: 'DELETE' });
+        if (response.ok) location.reload();
+        else { const err = await response.json(); alert(`Error: ${err.detail}`); }
+    }
+
+    // 초기 렌더링
+    document.addEventListener('DOMContentLoaded', renderComments);
+    document.getElementById('new-comment-form')?.addEventListener('submit', submitNewComment);
+
+    // 블로그 삭제
+    async function confirmDelete() {
+        if (!confirm('블로그를 정말 삭제하시겠습니까?')) return;
+        try {
+            const res = await fetch("/blogs/delete/{{ blog.id }}", { method: 'DELETE', headers: { 'Content-Type': 'application/json' } });
+            if (res.ok) { await res.json(); window.location.href = "/blogs"; }
+            else { const err = await res.json(); alert(`Error: ${err.detail}`); }
+        } catch (err) { console.error(err); alert('권한이 없습니다.'); }
     }
 </script>
 {% endblock %}

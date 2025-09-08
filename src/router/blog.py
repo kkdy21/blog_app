@@ -4,7 +4,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.dependencies.auth import get_current_user, get_current_user_or_none
 from src.model.user.orm import User
+from src.model.user.response import UserResponse
 from src.service.blog_svc import BlogService
+from src.service.comment_svc import CommentService
 from src.utils.db.db import get_db_session
 from src.utils.jinja_template import jinja_manager
 
@@ -42,6 +44,11 @@ async def get_blog_by_id(
     session: AsyncSession = Depends(get_db_session),
 ) -> HTMLResponse:
     blog_dto = await BlogService().get_blog_by_id(blog_id, session)
+    comments = await CommentService().get_comments_by_blog_id(blog_id, session)
+
+    session_user_dto = (
+        UserResponse.model_validate(current_user) if current_user else None
+    )
 
     return template.TemplateResponse(
         request=request,
@@ -49,7 +56,8 @@ async def get_blog_by_id(
         context={
             "request": request,
             "blog": blog_dto,
-            "session_user": current_user,
+            "comments": comments,
+            "session_user": session_user_dto,
             "is_valid_auth": current_user and current_user.id == blog_dto.author.id,
         },
         status_code=200,

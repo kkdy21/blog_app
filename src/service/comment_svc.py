@@ -1,8 +1,10 @@
+from datetime import datetime
+
 from fastapi import HTTPException, status
 from sqlalchemy import delete, select, update
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import joinedload, selectinload
+from sqlalchemy.orm import joinedload
 
 from src.model.comment.orm import Comment
 from src.model.comment.request import CommentRequest
@@ -10,12 +12,35 @@ from src.model.user.orm import User
 
 
 class CommentService:
-    def __init__(self) -> None:
-        pass
+    @staticmethod
+    def _serialize_comment(
+        comment: Comment, children_map: dict[int, list[Comment]]
+    ) -> dict:
+        """재귀적으로 Comment 객체를 JSON 직렬화"""
+        return {
+            "id": comment.id,
+            "content": comment.content,
+            "author": {"id": comment.author.id, "name": comment.author.name}
+            if comment.author
+            else None,
+            "parent_id": comment.parent_id,
+            "created_at": comment.created_at.isoformat()
+            if comment.created_at
+            else None,
+            "replies": [
+                CommentService._serialize_comment(reply, children_map)
+                for reply in sorted(
+                    children_map.get(comment.id, []),
+                    key=lambda r: r.created_at
+                    if isinstance(r.created_at, datetime)
+                    else datetime.fromisoformat(r.created_at),
+                )
+            ],
+        }
 
     async def create_comment(
         self, comment: CommentRequest, session: AsyncSession, session_user: User
-    ) -> None:
+    ) -> Comment:
         try:
             if not session_user.id:
                 raise HTTPException(
@@ -31,8 +56,13 @@ class CommentService:
             )
             session.add(new_comment)
             await session.flush()
+            await session.refresh(new_comment, ["author"])
+
+            # 새 댓글은 children_map이 필요 없으므로 replies = [] 처리
+            return new_comment
 
         except SQLAlchemyError as e:
+            print(f"SQLAlchemyError in create_comment: {e}")
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="댓글 생성 실패",
@@ -42,7 +72,11 @@ class CommentService:
         self, comment_id: int, session: AsyncSession
     ) -> Comment:
         try:
-            stmt = select(Comment).where(Comment.id == comment_id)
+            stmt = (
+                select(Comment)
+                .where(Comment.id == comment_id)
+                .options(joinedload(Comment.author))
+            )
             result = await session.execute(stmt)
             return result.scalar_one_or_none()
         except SQLAlchemyError as e:
@@ -57,7 +91,7 @@ class CommentService:
         comment: CommentRequest,
         session: AsyncSession,
         session_user: User,
-    ) -> None:
+    ) -> dict:
         try:
             comment_orm = await self.get_comment_by_comment_id(comment_id, session)
             if not comment_orm:
@@ -75,14 +109,28 @@ class CommentService:
             stmt = (
                 update(Comment)
                 .where(Comment.id == comment_id)
-                .values(
-                    content=comment.content,
-                )
+                .values(content=comment.content)
             )
             await session.execute(stmt)
+            await session.flush()
+            await session.refresh(comment_orm, ["author"])
+
+            return {
+                "id": comment_orm.id,
+                "content": comment_orm.content,
+                "author": {
+                    "id": comment_orm.author.id,
+                    "name": comment_orm.author.name,
+                },
+                "parent_id": comment_orm.parent_id,
+                "created_at": comment_orm.created_at.isoformat()
+                if comment_orm.created_at
+                else None,
+                "replies": [],  # 수정 시에는 replies 불필요
+            }
 
         except SQLAlchemyError as e:
-            raise SQLAlchemyError(
+            raise HTTPException(
                 status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
                 detail="데이터베이스 연결 실패",
             ) from e
@@ -108,31 +156,51 @@ class CommentService:
             await session.execute(stmt)
 
         except SQLAlchemyError as e:
-            raise SQLAlchemyError(
+            raise HTTPException(
                 status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
                 detail="데이터베이스 연결 실패",
             ) from e
 
     async def get_comments_by_blog_id(
         self, blog_id: int, session: AsyncSession
-    ) -> list[Comment]:
-        stmt = (
-            select(Comment)
-            .where(Comment.blog_id == blog_id)
-            # parent_id가 NULL인 댓글(최상위 댓글)만 먼저 선택합니다.
-            .where(Comment.parent_id == None)
-            .options(
-                # 각 최상위 댓글의 'replies'(대댓글)를 미리 로드합니다.
-                # 이 때, 대댓글의 작성자 정보도 함께 로드합니다.
-                selectinload(Comment.replies).options(joinedload(Comment.author)),
-                # 최상위 댓글의 작성자 정보도 로드합니다.
-                joinedload(Comment.author),
+    ) -> list[dict]:
+        try:
+            # 최상위 댓글 가져오기
+            stmt_top = (
+                select(Comment)
+                .where(Comment.blog_id == blog_id)
+                .where(Comment.parent_id == None)
+                .options(joinedload(Comment.author))
+                .order_by(Comment.created_at.asc())
             )
-            .order_by(Comment.created_at.asc())
-        )
+            result_top = await session.execute(stmt_top)
+            top_comments = result_top.scalars().unique().all()
 
-        result = await session.execute(stmt)
-        return result.scalars().all()
+            # 모든 댓글을 한 번에 가져오기
+            stmt_all = (
+                select(Comment)
+                .where(Comment.blog_id == blog_id)
+                .options(joinedload(Comment.author))
+                .order_by(Comment.created_at.asc())
+            )
+            result_all = await session.execute(stmt_all)
+            all_comments = result_all.scalars().all()
+
+            # parent_id → children 매핑
+            children_map: dict[int, list[Comment]] = {}
+            for c in all_comments:
+                if c.parent_id:
+                    children_map.setdefault(c.parent_id, []).append(c)
+
+            # 직렬화
+            return [self._serialize_comment(c, children_map) for c in top_comments]
+
+        except SQLAlchemyError as e:
+            print(f"SQLAlchemyError in get_comments_by_blog_id: {e}")
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="데이터베이스 연결 실패",
+            ) from e
 
     def _is_authorized(self, session_user: User, author_id: int) -> bool:
         return session_user.id == author_id
