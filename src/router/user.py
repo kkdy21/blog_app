@@ -15,22 +15,24 @@ template = jinja_manager.templates
 
 
 @router.get("/sign_in")
-async def get_sign_in_ui(request: Request) -> HTMLResponse:
+async def get_sign_in_ui(request: Request, next: str | None = None) -> HTMLResponse:
     return template.TemplateResponse(
         request=request,
         name="sign_in.html",
+        context={"next": next or ""},
     )
 
 
 @router.post("/sign_in")
 async def sign_in(
     request: Request,
+    next: str | None = Form(None),
     email: str = Form(),
     password: str = Form(),
     session: AsyncSession = Depends(get_db_session),
 ) -> RedirectResponse:
     await UserService().sign_in(request, email, password, session)
-    return RedirectResponse(url="/blogs", status_code=status.HTTP_303_SEE_OTHER)
+    return RedirectResponse(url=next or "/blogs", status_code=status.HTTP_303_SEE_OTHER)
 
 
 @router.get("/sign_up")
