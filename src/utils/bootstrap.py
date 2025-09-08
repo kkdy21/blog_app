@@ -7,7 +7,7 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.staticfiles import StaticFiles
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
-from src.router import blog, comment, user
+from src.router import blog, comment, tag, user
 from src.utils import error_handler
 from src.utils.db.db import db
 
@@ -26,6 +26,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     app.include_router(blog.router)
     app.include_router(user.router)
     app.include_router(comment.router)
+    app.include_router(tag.router)
 
     app.add_exception_handler(
         HTTPException, error_handler.custom_http_exception_handler

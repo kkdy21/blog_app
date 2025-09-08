@@ -1,5 +1,5 @@
 from fastapi import HTTPException, UploadFile, status
-from sqlalchemy import delete, select, update
+from sqlalchemy import delete, select
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload
@@ -8,6 +8,7 @@ from src.manager.image_manager import ImageManager
 from src.model.blog.orm import Blog
 from src.model.blog.response import BlogListResponse, BlogResponse
 from src.model.user.orm import User
+from src.service.tag_svc import TagService
 from src.utils.text_helper import newline_to_br
 
 
@@ -21,9 +22,13 @@ class BlogService:
         """
         내부 로직 전용: ID로 원본 Blog ORM 객체를 가져옵니다.
         """
-        stmt = select(Blog).options(joinedload(Blog.author)).where(Blog.id == blog_id)
+        stmt = (
+            select(Blog)
+            .options(joinedload(Blog.author), joinedload(Blog.tags))
+            .where(Blog.id == blog_id)
+        )
         result = await session.execute(stmt)
-        return result.scalar_one_or_none()
+        return result.unique().scalar_one_or_none()
 
     async def get_all_blogs(self, session: AsyncSession) -> list[BlogListResponse]:
         """
@@ -32,11 +37,11 @@ class BlogService:
         try:
             stmt = (
                 select(Blog)
-                .options(joinedload(Blog.author))
+                .options(joinedload(Blog.author), joinedload(Blog.tags))
                 .order_by(Blog.modified_dt.desc())
             )
             result = await session.execute(stmt)
-            blogs_orm = result.scalars().all()
+            blogs_orm = result.unique().scalars().all()
 
             # ORM 객체 리스트를 Pydantic DTO 리스트로 변환
             # BlogListResponse가 자동으로 내용을 자릅니다.
@@ -90,6 +95,7 @@ class BlogService:
         self,
         title: str,
         content: str,
+        tags_str: str,
         image_file: UploadFile | None,
         session: AsyncSession,
         session_user: User,
@@ -107,11 +113,18 @@ class BlogService:
                     session_user.email, image_file
                 )
 
+                # 태그 처리
+                tag_names = [
+                    name.strip() for name in tags_str.split(",") if name.strip()
+                ]
+                tags = await TagService().create_tags(tag_names, session)
+
             new_blog = Blog(
                 title=title,
                 content=content,
                 author_id=session_user.id,
                 image_loc=image_loc,
+                tags=tags,
             )
             session.add(new_blog)
             await session.flush()
@@ -153,6 +166,7 @@ class BlogService:
         blog_id: int,
         title: str,
         content: str,
+        tags_str: str,
         image_file: UploadFile | None,
         session: AsyncSession,
         session_user: User,
@@ -171,28 +185,27 @@ class BlogService:
                     detail="권한이 없습니다.",
                 )
 
+            # 1. 폼에서 받은 새 태그 문자열을 처리합니다.
+            tag_names = [name.strip() for name in tags_str.split(",") if name.strip()]
+            new_tags = await TagService().create_tags(tag_names, session)
+
+            # 2. 블로그의 제목, 내용, 이미지 위치를 업데이트합니다.
             image_loc = blog_orm.image_loc
             if image_file and image_file.filename:
                 image_loc = await self.image_manager.save_image(
                     session_user.email, image_file
                 )
 
-            stmt = (
-                update(Blog)
-                .where(Blog.id == blog_id)
-                .values(
-                    title=title,
-                    content=content,
-                    image_loc=image_loc,
-                )
-            )
-            result = await session.execute(stmt)
+            # 3. ORM 객체의 속성을 직접 수정한 뒤 세션에 추가합니다.
+            # 이렇게 해야 SQLAlchemy가 'tags' 관계의 변경을 감지하고
+            # 연관 테이블(post_tags)을 자동으로 업데이트할 수 있습니다.
+            blog_orm.title = title
+            blog_orm.content = content
+            blog_orm.image_loc = image_loc
+            blog_orm.tags = new_tags  # 태그 목록을 새 것으로 교체
 
-            if result.rowcount == 0:
-                raise HTTPException(
-                    status_code=status.HTTP_404_NOT_FOUND,
-                    detail="블로그 글을 찾을 수 없습니다.",
-                )
+            session.add(blog_orm)
+
         except SQLAlchemyError as e:
             raise HTTPException(
                 status_code=status.HTTP_503_SERVICE_UNAVAILABLE,

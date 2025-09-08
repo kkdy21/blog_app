@@ -82,10 +82,13 @@ async def create_blog(
     current_user: User = Depends(get_current_user),
     title: str = Form(min_length=2, max_length=200),
     content: str = Form(min_length=2, max_length=4000),
+    tags: str = Form(""),
     image_file: UploadFile | None = File(None),
     session: AsyncSession = Depends(get_db_session),
 ) -> RedirectResponse:
-    await BlogService().create_blog(title, content, image_file, session, current_user)
+    await BlogService().create_blog(
+        title, content, tags, image_file, session, current_user
+    )
     return RedirectResponse(url="/blogs", status_code=status.HTTP_303_SEE_OTHER)
 
 
@@ -111,12 +114,13 @@ async def update_blog(
     blog_id: int,
     title: str = Form(min_length=2, max_length=200),
     content: str = Form(min_length=2, max_length=4000),
+    tags: str = Form(""),
     image_file: UploadFile | None = File(None),
     session: AsyncSession = Depends(get_db_session),
     current_user: User = Depends(get_current_user),
 ) -> RedirectResponse:
     await BlogService().update_blog(
-        blog_id, title, content, image_file, session, current_user
+        blog_id, title, content, tags, image_file, session, current_user
     )
     return RedirectResponse(
         url=f"/blogs/show/{blog_id}", status_code=status.HTTP_303_SEE_OTHER
