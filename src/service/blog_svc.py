@@ -7,6 +7,7 @@ from sqlalchemy.orm import joinedload
 from src.manager.image_manager import ImageManager
 from src.model.blog.orm import Blog
 from src.model.blog.response import BlogListResponse, BlogResponse
+from src.model.tag.orm import Tag
 from src.model.user.orm import User
 from src.service.tag_svc import TagService
 from src.utils.text_helper import newline_to_br
@@ -210,6 +211,46 @@ class BlogService:
             raise HTTPException(
                 status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
                 detail="데이터베이스 연결 실패",
+            ) from e
+
+    async def get_blogs_by_tag(
+        self, tag_name: str, session: AsyncSession
+    ) -> list[BlogListResponse]:
+        """
+        특정 태그에 해당하는 블로그 목록을 가져옵니다.
+        """
+        try:
+            # 태그 이름으로 Tag ORM 객체를 찾고, 관련된 Blog 객체들을 함께 로드합니다.
+            stmt = (
+                select(Tag)
+                .options(
+                    joinedload(Tag.blogs).joinedload(Blog.author),
+                    joinedload(Tag.blogs).joinedload(Blog.tags),
+                )
+                .where(Tag.name == tag_name)
+            )
+            result = await session.execute(stmt)
+            tag_orm = result.unique().scalar_one_or_none()
+
+            if not tag_orm:
+                # 해당 태그가 없거나, 태그에 연결된 블로그가 없을 경우 빈 리스트 반환
+                return []
+
+            # ORM 객체 리스트를 Pydantic DTO 리스트로 변환
+            blog_dtos = [BlogListResponse.model_validate(b) for b in tag_orm.blogs]
+
+            # 이미지 URL 처리
+            for blog_dto in blog_dtos:
+                blog_dto.image_loc = self.image_manager.resolve_image_url(
+                    blog_dto.image_loc
+                )
+            return blog_dtos
+
+        except Exception as e:
+            print(f"Error in get_blogs_by_tag: {e}")
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"태그별 블로그 목록을 가져오는 중 오류 발생: {e}",
             ) from e
 
     def _is_authorized(self, session_user: User, author_id: int) -> bool:

@@ -5,6 +5,19 @@
     <div class="row justify-content-center">
         <!-- Blog Posts -->
         <div class="col-lg-8">
+            {% if filter_tag %}
+            <div class="alert alert-info d-flex justify-content-between align-items-center" role="alert">
+                <div>
+                    <i class="bi bi-tag-fill me-2"></i>
+                    <span class="fw-bold">태그:</span>
+                    <span class="badge bg-primary">{{ filter_tag }}</span>
+                </div>
+                <a href="/blogs" class="btn btn-sm btn-info">
+                    <i class="bi bi-x-lg me-1"></i> 필터 해제
+                </a>
+            </div>
+            {% endif %}
+
             {% for blog in all_blogs %}
             <div class="mb-4 border-bottom ">
                 <h2 class="fw-bold">{{ blog.title }}</h2>

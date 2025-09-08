@@ -137,3 +137,23 @@ async def delete_blog(
     return JSONResponse(
         content={"message": "Blog deleted successfully"}, status_code=status.HTTP_200_OK
     )
+
+
+@router.get("/tags/{tag_name}")
+async def get_blogs_by_tag(
+    request: Request,
+    tag_name: str,
+    session: AsyncSession = Depends(get_db_session),
+    current_user: User | None = Depends(get_current_user_or_none),
+) -> HTMLResponse:
+    blogs_dto = await BlogService().get_blogs_by_tag(tag_name, session)
+    return template.TemplateResponse(
+        request=request,
+        name="index.html",
+        context={
+            "all_blogs": blogs_dto,
+            "session_user": current_user,
+            "filter_tag": tag_name,
+        },
+        status_code=200,
+    )
