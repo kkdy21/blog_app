@@ -9,6 +9,14 @@
                 <p class="text-muted">Posted on {{ blog.modified_dt }} by {{ blog.author.name }}</p>
                 <img src="{{ blog.image_loc }}" class="img-fluid w-100 mb-4" style="height: 500px;" alt="Blog Image">
                 <p>{{ blog.content | safe }}</p>
+
+                <!-- Tags section -->
+                <div class="mt-3">
+                    {% for tag in blog.tags %}
+                    <a href="/blogs/tags/{{ tag.name }}" class="badge bg-secondary text-decoration-none me-1">{{
+                        tag.name }}</a>
+                    {% endfor %}
+                </div>
             </div>
 
             <a href="/blogs" class="btn btn-secondary">홈으로 돌아가기</a>

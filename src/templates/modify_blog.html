@@ -14,6 +14,13 @@
                     <input type="text" class="form-control" id="title" name="title" value="{{ blog.title }}">
                 </div>
 
+                <!-- Tags Input -->
+                <div class="mb-3">
+                    <label for="tags" class="form-label">Tags</label>
+                    <input type="text" class="form-control" id="tags" name="tags" placeholder="쉼표(,)로 구분하여 태그를 입력하세요"
+                        value="{{ blog.tags | map(attribute='name') | join(', ') }}">
+                </div>
+
                 <!-- Image Input -->
                 <div class="mb-3">
                     <label for="imagefile" class="form-label">Post Image</label>
