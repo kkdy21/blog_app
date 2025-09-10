@@ -1,46 +1,65 @@
 {% extends "/layout/main_layout.html" %}
 {% block content %}
-<!-- Main Content -->
-<div class="container mt-4">
-    <div class="row justify-content-center">
-        <!-- Blog Posts -->
-        <div class="col-lg-8">
-            {% if filter_tag %}
-            <div class="alert alert-info d-flex justify-content-between align-items-center" role="alert">
-                <div>
-                    <i class="bi bi-tag-fill me-2"></i>
-                    <span class="fw-bold">태그:</span>
-                    <span class="badge bg-primary">{{ filter_tag }}</span>
-                </div>
-                <a href="/blogs" class="btn btn-sm btn-info">
-                    <i class="bi bi-x-lg me-1"></i> 필터 해제
-                </a>
-            </div>
-            {% endif %}
+<div class="max-w-6xl mx-auto">
+    {% if filter_tag %}
+    <div class="flex items-center justify-between bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-800 rounded-xl px-4 py-3 mb-6"
+        data-aos="fade-down">
+        <div class="flex items-center gap-2 text-blue-700 dark:text-blue-300">
+            <span
+                class="inline-flex items-center px-2 py-1 text-xs font-semibold rounded-full bg-blue-100 dark:bg-blue-800/50 text-blue-700 dark:text-blue-200">태그</span>
+            <span class="font-medium">{{ filter_tag }}</span>
+        </div>
+        <a href="/blogs" class="text-sm text-blue-700 dark:text-blue-300 hover:underline">필터 해제</a>
+    </div>
+    {% endif %}
 
-            {% for blog in all_blogs %}
-            <div class="mb-4 border-bottom ">
-                <h2 class="fw-bold">{{ blog.title }}</h2>
-                <p class="text-muted">Posted on {{ blog.modified_dt }} by {{ blog.author.name }}</p>
-                <div class="mb-2">
+    {% if not all_blogs %}
+    <div class="text-center py-20" data-aos="fade-up">
+        <h2 class="text-xl font-semibold text-gray-700 dark:text-gray-300">아직 게시글이 없습니다.</h2>
+        {% if session_user %}
+        <a href="/blogs/new"
+            class="inline-flex items-center gap-2 mt-4 bg-primary-600 hover:bg-primary-700 text-white font-semibold px-4 py-2 rounded-lg transition">첫
+            글 작성하기</a>
+        {% endif %}
+    </div>
+    {% else %}
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+        {% for blog in all_blogs %}
+        <article
+            class="bg-white dark:bg-gray-800 rounded-xl shadow-sm hover:shadow-lg transition transform hover:-translate-y-0.5 overflow-hidden"
+            data-aos="fade-up">
+            <div class="h-44 bg-gray-100 dark:bg-gray-700 overflow-hidden">
+                <img src="{{ blog.image_loc }}" alt="blog image" class="w-full h-full object-cover">
+            </div>
+            <div class="p-5">
+                <h2 class="text-xl font-bold text-gray-900 dark:text-gray-100 line-clamp-2">{{ blog.title }}</h2>
+                <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">{{ blog.modified_dt }} · {{ blog.author.name }}
+                </p>
+
+                <div class="flex flex-wrap gap-2 mt-3">
                     {% for tag in blog.tags %}
-                    <a href="/blogs/tags/{{ tag.name }}" class="badge bg-secondary text-decoration-none me-1">{{
+                    <a href="/blogs/tags/{{ tag.name }}"
+                        class="text-xs px-2 py-1 rounded-full bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-primary-50 hover:text-primary-700 transition">#{{
                         tag.name }}</a>
                     {% endfor %}
                 </div>
-                <div class="row">
-                    <div class="col-lg-8">
-                        <p class="mt-3">{{ blog.content | safe }}</p>
-                    </div>
-                    <div class="col-lg-4">
-                        <img src="{{ blog.image_loc }}" class="img-fluid" alt="Blog Image">
-                    </div>
+
+                <p class="text-gray-700 dark:text-gray-300 mt-3 line-clamp-3">{{ blog.content | safe }}</p>
+                <div class="mt-4">
+                    <a href="/blogs/show/{{ blog.id }}"
+                        class="inline-flex items-center gap-2 bg-primary-600 hover:bg-primary-700 text-white font-semibold px-4 py-2 rounded-lg transition">
+                        Read More
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+                            <path fill-rule="evenodd"
+                                d="M10.293 3.293a1 1 0 011.414 0l5 5a1 1 0 010 1.414l-5 5a1 1 0 01-1.414-1.414L13.586 10 10.293 6.707a1 1 0 010-1.414z"
+                                clip-rule="evenodd" />
+                        </svg>
+                    </a>
                 </div>
-                <a href="/blogs/show/{{blog.id}}" class="btn btn-primary mb-4">Read More</a>
             </div>
-            {% endfor %}
-        </div>
+        </article>
+        {% endfor %}
     </div>
+    {% endif %}
 </div>
-<!-- End of Main Content-->
 {% endblock %}

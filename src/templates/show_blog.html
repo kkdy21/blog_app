@@ -1,60 +1,58 @@
 {% extends "/layout/main_layout.html" %}
 
 {% block content %}
-<div class="container mt-4">
-    <div class="row justify-content-center">
-        <div class="col-lg-10">
-            <div class="mb-4">
-                <h1 class="fw-bold">{{ blog.title }}</h1>
-                <p class="text-muted">Posted on {{ blog.modified_dt }} by {{ blog.author.name }}</p>
-                <img src="{{ blog.image_loc }}" class="img-fluid w-100 mb-4" style="height: 500px;" alt="Blog Image">
-                <p>{{ blog.content | safe }}</p>
-
-                <!-- Tags section -->
-                <div class="mt-3">
-                    {% for tag in blog.tags %}
-                    <a href="/blogs/tags/{{ tag.name }}" class="badge bg-secondary text-decoration-none me-1">{{
-                        tag.name }}</a>
-                    {% endfor %}
-                </div>
-            </div>
-
-            <a href="/blogs" class="btn btn-secondary">홈으로 돌아가기</a>
+<section class="max-w-5xl mx-auto space-y-8">
+    <article class="space-y-4" data-aos="fade-up">
+        <h1 class="text-3xl font-extrabold text-gray-900 dark:text-gray-100">{{ blog.title }}</h1>
+        <p class="text-sm text-gray-500 dark:text-gray-400">{{ blog.modified_dt }} · {{ blog.author.name }}</p>
+        <div class="h-80 w-full bg-gray-100 dark:bg-gray-700 overflow-hidden rounded-xl">
+            <img src="{{ blog.image_loc }}" alt="Blog Image" class="w-full h-full object-cover" />
+        </div>
+        <div class="prose dark:prose-invert max-w-none">{{ blog.content | safe }}</div>
+        <div class="flex flex-wrap gap-2">
+            {% for tag in blog.tags %}
+            <a href="/blogs/tags/{{ tag.name }}"
+                class="text-xs px-2 py-1 rounded-full bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-primary-50 hover:text-primary-700 transition">#{{
+                tag.name }}</a>
+            {% endfor %}
+        </div>
+        <div class="flex gap-3 pt-2">
+            <a href="/blogs"
+                class="bg-gray-200 hover:bg-gray-300 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-800 dark:text-gray-100 font-semibold px-5 py-2.5 rounded-lg transition">홈으로</a>
             {% if is_valid_auth %}
-            <a href="/blogs/modify/{{ blog.id }}" class="btn btn-primary">블로그 수정</a>
-            <button class="btn btn-danger" onclick="confirmDelete()">블로그 삭제</button>
+            <a href="/blogs/modify/{{ blog.id }}"
+                class="bg-primary-600 hover:bg-primary-700 text-white font-semibold px-5 py-2.5 rounded-lg transition">수정</a>
+            <button onclick="confirmDelete()"
+                class="bg-red-600 hover:bg-red-700 text-white font-semibold px-5 py-2.5 rounded-lg transition">삭제</button>
             {% endif %}
         </div>
-    </div>
-</div>
+    </article>
 
-<div class="container mt-5">
-    <div class="row justify-content-center">
-        <div class="col-lg-10">
-            <h3>Comments ({{ comments|length }})</h3>
+    <section data-aos="fade-up" class="space-y-4">
+        <h3 class="text-xl font-bold text-gray-900 dark:text-gray-100">Comments ({{ comments|length }})</h3>
 
-            {% if session_user %}
-            <div class="card my-4">
-                <h5 class="card-header">Leave a Comment:</h5>
-                <div class="card-body">
-                    <form id="new-comment-form">
-                        <div class="form-group">
-                            <textarea id="new-comment-content" class="form-control" rows="3" required></textarea>
-                        </div>
-                        <button type="submit" class="btn btn-primary mt-2">Submit</button>
-                    </form>
+        {% if session_user %}
+        <div class="bg-white dark:bg-gray-800 rounded-xl p-4 shadow-sm">
+            <form id="new-comment-form" class="space-y-3">
+                <textarea id="new-comment-content"
+                    class="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary-500"
+                    rows="3" placeholder="댓글을 입력하세요" required></textarea>
+                <div class="text-right">
+                    <button type="submit"
+                        class="bg-primary-600 hover:bg-primary-700 text-white font-semibold px-4 py-2 rounded-lg transition">등록</button>
                 </div>
-            </div>
-            {% else %}
-            <div class="alert alert-info">
-                <a href="/users/sign_in?next=/blogs/show/{{ blog.id }}">로그인</a> 후 댓글을 작성할 수 있습니다.
-            </div>
-            {% endif %}
-
-            <div id="comment-list"></div>
+            </form>
         </div>
-    </div>
-</div>
+        {% else %}
+        <div
+            class="bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-800 rounded-xl p-4 text-blue-700 dark:text-blue-300">
+            <a href="/users/sign_in?next=/blogs/show/{{ blog.id }}" class="underline">로그인</a> 후 댓글을 작성할 수 있습니다.
+        </div>
+        {% endif %}
+
+        <div id="comment-list" class="space-y-4"></div>
+    </section>
+</section>
 
 <script>
     const BLOG_ID = {{ blog.id }};
@@ -84,36 +82,11 @@
         }
 
         // All replies (depth > 0) get a single, non-cumulative indentation level.
-        const indentClass = depth > 0 ? 'ms-5' : '';
-        const replyToHTML = parentAuthorName
-            ? `<a href="#comment-${comment.parent_id}" class="text-primary fw-bold me-1">@${parentAuthorName}</a>`
-            : '';
+        const indentClass = depth > 0 ? 'pl-6 border-l-2 border-gray-200 dark:border-gray-700' : '';
+        const replyToHTML = parentAuthorName ? `<a href=\"#comment-${comment.parent_id}\" class=\"text-primary-600 font-semibold mr-1\">@${parentAuthorName}</a>` : '';
 
         return `
-            <div class="d-flex mb-4 ${indentClass}" id="comment-${comment.id}" data-author-name="${authorName}">
-                <div class="flex-shrink-0"><img class="rounded-circle" src="https://dummyimage.com/50x50/ced4da/6c757d.jpg" alt="..."></div>
-                <div class="ms-3 flex-grow-1">
-                    <div class="fw-bold">${authorName} <small class="text-muted">· ${createdAt}</small></div>
-                    <div class="comment-content">${replyToHTML}${comment.content}</div>
-                    <div class="comment-actions mt-1">${actionsHTML}</div>
-                    <div id="reply-form-${comment.id}" class="mt-3" style="display: none;">
-                        <form onsubmit="submitReply(event, ${comment.id})">
-                            <div class="form-group"><textarea class="form-control" name="content" rows="2" required></textarea></div>
-                            <button type="submit" class="btn btn-sm btn-primary mt-2">Submit Reply</button>
-                            <button type="button" class="btn btn-sm btn-secondary mt-2" onclick="hideReplyForm(${comment.id})">Cancel</button>
-                        </form>
-                    </div>
-                    <div id="edit-form-${comment.id}" class="mt-3" style="display: none;">
-                        <form onsubmit="submitEdit(event, ${comment.id})">
-                            <div class="form-group"><textarea class="form-control" name="content" rows="2" required>${comment.content}</textarea></div>
-                            <button type="submit" class="btn btn-sm btn-primary mt-2">Save Changes</button>
-                            <button type="button" class="btn btn-sm btn-secondary mt-2" onclick="hideEditForm(${comment.id})">Cancel</button>
-                        </form>
-                    </div>
-                    <div class="replies-container mt-3"></div>
-                </div>
-            </div>
-        `;
+        <div class=\"flex gap-3 ${indentClass}\" id=\"comment-${comment.id}\" data-author-name=\"${authorName}\">\n            <img class=\"w-10 h-10 rounded-full\" src=\"https://dummyimage.com/50x50/ced4da/6c757d.jpg\" alt=\"avatar\"/>\n            <div class=\"flex-1\">\n                <div class=\"font-semibold text-gray-900 dark:text-gray-100\">${authorName} <span class=\"text-xs text-gray-500 dark:text-gray-400\">· ${createdAt}</span></div>\n                <div class=\"text-gray-800 dark:text-gray-200 comment-content\">${replyToHTML}${comment.content}</div>\n                <div class=\"mt-1 comment-actions\">${actionsHTML}</div>\n                <div id=\"reply-form-${comment.id}\" class=\"mt-3 hidden\">\n                    <form onsubmit=\"submitReply(event, ${comment.id})\" class=\"space-y-2\">\n                        <textarea class=\"w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-3 py-2\" name=\"content\" rows=\"2\" required></textarea>\n                        <div class=\"flex gap-2\">\n                            <button class=\"bg-primary-600 hover:bg-primary-700 text-white text-sm px-3 py-1.5 rounded-lg\">Reply</button>\n                            <button type=\"button\" class=\"bg-gray-200 hover:bg-gray-300 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-800 dark:text-gray-100 text-sm px-3 py-1.5 rounded-lg\" onclick=\"hideReplyForm(${comment.id})\">Cancel</button>\n                        </div>\n                    </form>\n                </div>\n                <div id=\"edit-form-${comment.id}\" class=\"mt-3 hidden\">\n                    <form onsubmit=\"submitEdit(event, ${comment.id})\" class=\"space-y-2\">\n                        <textarea class=\"w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-3 py-2\" name=\"content\" rows=\"2\" required>${comment.content}</textarea>\n                        <div class=\"flex gap-2\">\n                            <button class=\"bg-primary-600 hover:bg-primary-700 text-white text-sm px-3 py-1.5 rounded-lg\">Save</button>\n                            <button type=\"button\" class=\"bg-gray-200 hover:bg-gray-300 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-800 dark:text-gray-100 text-sm px-3 py-1.5 rounded-lg\" onclick=\"hideEditForm(${comment.id})\">Cancel</button>\n                        </div>\n                    </form>\n                </div>\n            </div>\n        </div>`;
     }
 
     function createElementFromHTML(htmlString) {
@@ -165,20 +138,10 @@
     }
 
     // UI 제어
-    function showReplyForm(id) { document.getElementById(`reply-form-${id}`).style.display = 'block'; }
-    function hideReplyForm(id) { document.getElementById(`reply-form-${id}`).style.display = 'none'; }
-    function showEditForm(id) {
-        const div = document.getElementById(`comment-${id}`);
-        div.querySelector('.comment-content').style.display = 'none';
-        div.querySelector('.comment-actions').style.display = 'none';
-        document.getElementById(`edit-form-${id}`).style.display = 'block';
-    }
-    function hideEditForm(id) {
-        const div = document.getElementById(`comment-${id}`);
-        div.querySelector('.comment-content').style.display = 'block';
-        div.querySelector('.comment-actions').style.display = 'block';
-        document.getElementById(`edit-form-${id}`).style.display = 'none';
-    }
+    function showReplyForm(id) { document.getElementById(`reply-form-${id}`).classList.remove('hidden'); }
+    function hideReplyForm(id) { document.getElementById(`reply-form-${id}`).classList.add('hidden'); }
+    function showEditForm(id) { const d = document.getElementById(`comment-${id}`); d.querySelector('.comment-content').classList.add('hidden'); d.querySelector('.comment-actions').classList.add('hidden'); document.getElementById(`edit-form-${id}`).classList.remove('hidden'); }
+    function hideEditForm(id) { const d = document.getElementById(`comment-${id}`); d.querySelector('.comment-content').classList.remove('hidden'); d.querySelector('.comment-actions').classList.remove('hidden'); document.getElementById(`edit-form-${id}`).classList.add('hidden'); }
 
     // Form 핸들러
     async function handleApiResponse(res) {

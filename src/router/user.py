@@ -26,9 +26,9 @@ async def get_sign_in_ui(request: Request, next: str | None = None) -> HTMLRespo
 @router.post("/sign_in")
 async def sign_in(
     request: Request,
-    next: str | None = Form(None),
     email: str = Form(),
     password: str = Form(),
+    next: str | None = Form(None),
     session: AsyncSession = Depends(get_db_session),
 ) -> RedirectResponse:
     await UserService().sign_in(request, email, password, session)

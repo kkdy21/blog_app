@@ -5,35 +5,32 @@
 {% endblock %}
 
 {% block content %}
-<div class="container mt-5">
-    <div class="row justify-content-center">
-        <div class="col-md-8 text-center">
-            <h1 class="display-1">{{ status_code }}</h1>
-            <h2 class="mb-4">{{ title_message }}</h2>
+<section class="max-w-3xl mx-auto mt-16 text-center" data-aos="fade-up">
+    <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm p-8">
+        <div class="text-6xl font-extrabold text-red-500">{{ status_code }}</div>
+        <h2 class="text-2xl font-semibold text-gray-900 dark:text-gray-100 mt-2">{{ title_message }}</h2>
 
-            {# detail이 리스트인 경우와 아닌 경우를 분기 처리 #}
-            {% if detail is iterable and not detail is string %}
-            <div class="alert alert-danger text-start" role="alert">
-                <ul class="mb-0">
-                    {% for item in detail %}
-                    <li>{{ item }}</li>
-                    {% endfor %}
-                </ul>
-            </div>
-            {% else %}
-            <p class="lead">{{ detail }}</p>
-            {% endif %}
+        {% if detail is iterable and not detail is string %}
+        <div
+            class="text-left mt-6 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl p-4">
+            <ul class="list-disc list-inside text-red-700 dark:text-red-300">
+                {% for item in detail %}
+                <li>{{ item }}</li>
+                {% endfor %}
+            </ul>
+        </div>
+        {% else %}
+        <p class="text-gray-600 dark:text-gray-300 mt-6">{{ detail }}</p>
+        {% endif %}
 
-            <hr class="my-4">
-            <div class="d-flex justify-content-center">
-                <a href="{{ url_for('get_all_blogs') }}" class="btn btn-primary me-2">
-                    <i class="fas fa-home me-1"></i> 홈으로 돌아가기
-                </a>
-                <button onclick="history.back()" class="btn btn-secondary">
-                    <i class="fas fa-arrow-left me-1"></i> 이전 페이지로 돌아가기
-                </button>
-            </div>
+        <div class="flex justify-center gap-3 mt-8">
+            <a href="/blogs"
+                class="bg-primary-600 hover:bg-primary-700 text-white font-semibold px-5 py-2.5 rounded-lg transition">홈으로
+                돌아가기</a>
+            <button onclick="history.back()"
+                class="bg-gray-200 hover:bg-gray-300 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-800 dark:text-gray-100 font-semibold px-5 py-2.5 rounded-lg transition">이전
+                페이지</button>
         </div>
     </div>
-</div>
+</section>
 {% endblock %}
