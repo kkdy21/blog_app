@@ -6,6 +6,7 @@ class UserData:
     id: int
     name: str
     email: str
+    is_email_verified: bool
 
 
 @dataclass

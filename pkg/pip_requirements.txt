@@ -16,3 +16,4 @@ aiomysql==0.2.0
 aiofiles==24.1.0
 itsdangerous==2.2.0
 alembic
+celery

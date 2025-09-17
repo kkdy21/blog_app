@@ -33,6 +33,7 @@ class User(Base):
         DateTime(timezone=True),
         server_default=func.now(),  # 데이터베이스에서 기본값으로 현재 시간을 사용합니다.
     )
+    is_email_verified: Mapped[bool] = mapped_column(default=False)
 
     # relationship()은 다른 ORM 모델과의 관계를 정의합니다.
     # 'blogs' 속성을 통해 User 객체에서 관련된 Blog 객체 목록에 접근할 수 있습니다.

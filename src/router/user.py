@@ -15,11 +15,13 @@ template = jinja_manager.templates
 
 
 @router.get("/sign_in")
-async def get_sign_in_ui(request: Request, next: str | None = None) -> HTMLResponse:
+async def get_sign_in_ui(
+    request: Request, next: str | None = None, notice: str | None = None
+) -> HTMLResponse:
     return template.TemplateResponse(
         request=request,
         name="sign_in.html",
-        context={"next": next or ""},
+        context={"next": next or "", "notice": notice},
     )
 
 
@@ -52,10 +54,25 @@ async def sign_up(
     session: AsyncSession = Depends(get_db_session),
 ) -> RedirectResponse:
     await UserService().create_user(name, email, password, session)
-    return RedirectResponse(url="/users/sign_in", status_code=status.HTTP_303_SEE_OTHER)
+    return RedirectResponse(
+        url="/users/sign_in?notice=verify_email", status_code=status.HTTP_303_SEE_OTHER
+    )
 
 
 @router.get("/sign_out")
 async def sign_out(request: Request) -> RedirectResponse:
     logout(request)
     return RedirectResponse(url="/users/sign_in", status_code=status.HTTP_303_SEE_OTHER)
+
+
+@router.get("/verify_email")
+async def verify_email(
+    request: Request, token: str, session: AsyncSession = Depends(get_db_session)
+) -> HTMLResponse:
+    ok = await UserService().verify_email(token, session)
+    message = "이메일 인증이 완료되었습니다." if ok else "이메일 인증에 실패했습니다."
+    return template.TemplateResponse(
+        request=request,
+        name="sign_in.html",
+        context={"next": "", "notice": message},
+    )

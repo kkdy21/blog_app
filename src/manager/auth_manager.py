@@ -14,6 +14,7 @@ def login(request: Request, user: UserDataPass) -> None:
         "id": user.id,
         "name": user.name,
         "email": user.email,
+        "is_email_verified": user.is_email_verified,
     }
 
 

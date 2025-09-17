@@ -13,12 +13,76 @@ services:
       - DATABASE_URL=mysql+aiomysql://root:root1234$@db:3306/blog_db
       - IMAGE_UPLOAD_PATH=${VOLUME_PATH}/src/static/images
       - VOLUME_PATH=${VOLUME_PATH}
+      - CELERY_BROKER_URL=amqp://root:root1234$@rabbitmq:5672//
+      - CELERY_RESULT_BACKEND=redis://redis:6380/1
+      # SMTP (app에서도 필요 시 재사용할 수 있도록 동일 노출) - MailHog 설정
+      - SMTP_HOST=mailhog
+      - SMTP_PORT=1025
+      - SMTP_USER=
+      - SMTP_PASS=
+      - SMTP_TLS=false
+      - SMTP_FROM=noreply@localhost.com
       - SECRET_KEY=bolg_db
       - REDIS_URL=redis://redis:6380
     depends_on:
       db:
         condition: service_healthy
+      redis:
+        condition: service_started
+      mailhog:
+        condition: service_started
+      rabbitmq:
+        condition: service_started
 
+  worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    depends_on:
+      - redis
+      - rabbitmq
+    environment:
+      - CELERY_BROKER_URL=amqp://root:root1234$@rabbitmq:5672//
+      - CELERY_RESULT_BACKEND=redis://redis:6380/1
+      # SMTP for Celery email task - MailHog 설정
+      - SMTP_HOST=mailhog
+      - SMTP_PORT=1025
+      - SMTP_USER=
+      - SMTP_PASS=
+      - SMTP_TLS=false
+      - SMTP_FROM=noreply@localhost.com
+    command: celery -A src.worker.celery_app.celery_app worker --loglevel=info # Celery에게 "어디에 있는 설정 정보를 보고 일해야 하는지" 알려주는 부분입니다.
+
+  mailhog:
+    image: mailhog/mailhog
+    ports:
+      - "8025:8025" # Web UI
+      - "1025:1025" # SMTP
+
+  rabbitmq:
+    image: rabbitmq:3.11-management-alpine
+    environment:
+      - RABBITMQ_DEFAULT_USER=root
+      - RABBITMQ_DEFAULT_PASS=root1234$
+    ports:
+      - "5672:5672" #AMQP 포트
+      - "15672:15672" #관리자 UI 포트
+
+  # # Celery 모니터링 대시보드
+  # Celery 모니터링 대시보드
+  flower:
+    image: mher/flower
+    # command 라인을 완전히 삭제합니다.
+    environment:
+      # mher/flower 이미지가 사용하는 표준 환경변수로 수정합니다.
+      - CELERY_BROKER_URL=amqp://root:root1234$@rabbitmq:5672//
+      - CELERY_RESULT_BACKEND=redis://redis:6380/1
+      - FLOWER_PORT=5555 # 포트 설정은 FLOWER_PORT가 맞습니다.
+    ports:
+      - "5555:5555"
+    depends_on:
+      - rabbitmq
+      - redis
   db:
     image: mysql:8.0
     volumes:
